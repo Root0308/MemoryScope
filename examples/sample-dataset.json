@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.1",
+  "name": "memoryscope-sample",
+  "conversations": [
+    {
+      "id": "conv-001",
+      "messages": [
+        {
+          "id": "mem-001",
+          "role": "user",
+          "content": "我更喜欢深色主题。",
+          "timestamp": "2026-08-20T10:00:00Z",
+          "metadata": {
+            "source": "sample"
+          }
+        },
+        {
+          "id": "mem-002",
+          "role": "assistant",
+          "content": "已记录你的界面偏好。"
+        }
+      ]
+    },
+    {
+      "id": "conv-002",
+      "messages": [
+        {
+          "id": "mem-003",
+          "role": "user",
+          "content": "Please remind me that the project review is on Friday."
+        },
+        {
+          "id": "mem-004",
+          "role": "assistant",
+          "content": "The project review is scheduled for Friday."
+        }
+      ]
+    }
+  ],
+  "evaluation_cases": [
+    {
+      "id": "eval-001",
+      "query": "用户喜欢什么界面主题？",
+      "relevant_memory_ids": [
+        "mem-001"
+      ]
+    },
+    {
+      "id": "eval-002",
+      "query": "When is the project review?",
+      "relevant_memory_ids": [
+        "mem-003",
+        "mem-004"
+      ]
+    }
+  ]
+}
