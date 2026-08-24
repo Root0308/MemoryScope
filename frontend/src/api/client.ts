@@ -4,15 +4,19 @@ export const configuredBaseUrl =
 export const apiBaseUrl = configuredBaseUrl.replace(/\/$/, "");
 
 type ErrorPayload = {
-  detail?: string | {
-    message?: string;
-    errors?: Array<{
-      loc?: Array<string | number>;
-      msg?: string;
-      path?: string;
-      message?: string;
-    }>;
-  };
+  detail?: string | ErrorDetail | ValidationIssue[];
+};
+
+type ValidationIssue = {
+  loc?: Array<string | number>;
+  msg?: string;
+  path?: string;
+  message?: string;
+};
+
+type ErrorDetail = {
+  message?: string;
+  errors?: ValidationIssue[];
 };
 
 export async function apiError(response: Response): Promise<Error> {
@@ -21,6 +25,13 @@ export async function apiError(response: Response): Promise<Error> {
     const payload = (await response.json()) as ErrorPayload;
     if (typeof payload.detail === "string") {
       message = payload.detail;
+    } else if (Array.isArray(payload.detail)) {
+      const firstIssue = payload.detail[0];
+      const location = firstIssue?.path ?? firstIssue?.loc?.join(" → ");
+      const issueMessage = firstIssue?.message ?? firstIssue?.msg;
+      if (issueMessage) {
+        message = `${location ? `${location}: ` : ""}${issueMessage}`;
+      }
     } else if (payload.detail?.message) {
       const firstIssue = payload.detail.errors?.[0];
       const location = firstIssue?.path ?? firstIssue?.loc?.join(" → ");

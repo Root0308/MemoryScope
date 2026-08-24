@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchHealth } from "./api/health";
 import { DatasetPage } from "./features/datasets/DatasetPage";
+import { SearchPage } from "./features/search/SearchPage";
 import type { HealthResponse } from "./types/health";
 
 
@@ -10,9 +11,20 @@ type HealthState =
   | { kind: "online"; data: HealthResponse }
   | { kind: "offline"; message: string };
 
+function searchDatasetIdFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/datasets\/([^/]+)\/search\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 
 function App() {
   const [health, setHealth] = useState<HealthState>({ kind: "loading" });
+  const [searchDatasetId, setSearchDatasetId] = useState<string | null>(searchDatasetIdFromPath);
 
   const checkHealth = useCallback(async (signal?: AbortSignal) => {
     setHealth({ kind: "loading" });
@@ -38,6 +50,22 @@ function App() {
     return () => controller.abort();
   }, [checkHealth]);
 
+  useEffect(() => {
+    const handlePopState = () => setSearchDatasetId(searchDatasetIdFromPath());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  function openSearch(datasetId: string) {
+    window.history.pushState({}, "", `/datasets/${encodeURIComponent(datasetId)}/search`);
+    setSearchDatasetId(datasetId);
+  }
+
+  function closeSearch() {
+    window.history.pushState({}, "", "/");
+    setSearchDatasetId(null);
+  }
+
   const statusLabel =
     health.kind === "loading"
       ? "Checking"
@@ -62,8 +90,12 @@ function App() {
         </div>
       </header>
       {health.kind === "offline" && <div className="global-error" role="alert">{health.message}</div>}
-      <DatasetPage />
-      <footer><span>v0.1 · M2 JSON import & SQLite</span><span>No conversation data leaves this machine.</span></footer>
+      {searchDatasetId ? (
+        <SearchPage datasetId={searchDatasetId} onBack={closeSearch} />
+      ) : (
+        <DatasetPage onSearch={openSearch} />
+      )}
+      <footer><span>v0.1 · M3 BM25 retrieval</span><span>No conversation data leaves this machine.</span></footer>
     </main>
   );
 }

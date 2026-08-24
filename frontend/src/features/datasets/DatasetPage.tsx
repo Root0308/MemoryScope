@@ -7,7 +7,9 @@ import { MemoryPreview } from "./MemoryPreview";
 
 const PAGE_SIZE = 10;
 
-export function DatasetPage() {
+type Props = { onSearch: (datasetId: string) => void };
+
+export function DatasetPage({ onSearch }: Props) {
   const [datasets, setDatasets] = useState<DatasetSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
@@ -81,7 +83,8 @@ export function DatasetPage() {
       <DatasetImportPanel onImported={handleImported} />
       <DatasetList
         datasets={datasets} loading={listLoading} error={listError} selectedId={selectedId}
-        deletingId={deletingId} onSelect={selectDataset} onDelete={(dataset) => void handleDelete(dataset)}
+        deletingId={deletingId} onSelect={selectDataset} onSearch={onSearch}
+        onDelete={(dataset) => void handleDelete(dataset)}
         onRetry={() => void loadDatasets()}
       />
       <MemoryPreview

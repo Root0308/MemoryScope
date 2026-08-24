@@ -3,7 +3,8 @@ import type { DatasetSummary } from "../../types/datasets";
 type Props = {
   datasets: DatasetSummary[]; loading: boolean; error: string | null;
   selectedId: string | null; deletingId: string | null;
-  onSelect: (id: string) => void; onDelete: (dataset: DatasetSummary) => void; onRetry: () => void;
+  onSelect: (id: string) => void; onSearch: (id: string) => void;
+  onDelete: (dataset: DatasetSummary) => void; onRetry: () => void;
 };
 
 function formatDate(value: string) {
@@ -11,7 +12,7 @@ function formatDate(value: string) {
 }
 
 export function DatasetList(props: Props) {
-  const { datasets, loading, error, selectedId, deletingId, onSelect, onDelete, onRetry } = props;
+  const { datasets, loading, error, selectedId, deletingId, onSelect, onSearch, onDelete, onRetry } = props;
   return (
     <section className="panel" aria-labelledby="datasets-title">
       <div className="panel-heading">
@@ -38,10 +39,16 @@ export function DatasetList(props: Props) {
                   <span><strong>{dataset.evaluation_case_count}</strong> eval cases</span>
                 </span>
               </button>
-              <button
-                className="delete-button" type="button" disabled={deletingId === dataset.id}
-                onClick={() => onDelete(dataset)} aria-label={`Delete ${dataset.name}`}
-              >{deletingId === dataset.id ? "Deleting…" : "Delete"}</button>
+              <div className="dataset-actions">
+                <button
+                  className="search-button" type="button"
+                  onClick={() => onSearch(dataset.id)} aria-label={`Search ${dataset.name} with BM25`}
+                >Search BM25</button>
+                <button
+                  className="delete-button" type="button" disabled={deletingId === dataset.id}
+                  onClick={() => onDelete(dataset)} aria-label={`Delete ${dataset.name}`}
+                >{deletingId === dataset.id ? "Deleting…" : "Delete"}</button>
+              </div>
             </article>
           ))}
         </div>

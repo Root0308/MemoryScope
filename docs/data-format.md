@@ -20,7 +20,7 @@ M2 enforces one strict JSON object. Unknown fields and type coercion are rejecte
 
 ## Message / memory
 
-Every message is stored as exactly one memory in source order. There is no automatic chunking or embedding in M2.
+Every message is stored as exactly one memory in source order. M3 indexes `content` as one BM25 document without automatic chunking or embedding.
 
 | Field | Required | Type | Constraint |
 | --- | --- | --- | --- |
@@ -50,3 +50,7 @@ Every message is stored as exactly one memory in source order. There is no autom
 - A rejected or failed import leaves no dataset, memory, case, or relevance rows behind
 
 See [`examples/sample-dataset.json`](../examples/sample-dataset.json) for a complete accepted file.
+
+## M3 BM25 text treatment
+
+Search does not change the imported JSON or stored content. For BM25 only, text is normalized with Unicode NFKC and lowercased; consecutive letters and numbers become tokens, while each contiguous Chinese run contributes character unigrams and adjacent character bigrams. Whitespace and punctuation are boundaries and do not become tokens.

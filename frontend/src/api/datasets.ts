@@ -1,4 +1,9 @@
-import type { DatasetListResponse, DatasetSummary, MemoryPage } from "../types/datasets";
+import type {
+  BM25SearchResponse,
+  DatasetListResponse,
+  DatasetSummary,
+  MemoryPage,
+} from "../types/datasets";
 import { apiBaseUrl, apiError } from "./client";
 
 export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
@@ -7,6 +12,15 @@ export async function fetchDatasets(signal?: AbortSignal): Promise<DatasetListRe
   const response = await fetch(`${apiBaseUrl}/api/v1/datasets`, { signal });
   if (!response.ok) throw await apiError(response);
   return (await response.json()) as DatasetListResponse;
+}
+
+export async function fetchDataset(
+  datasetId: string,
+  signal?: AbortSignal,
+): Promise<DatasetSummary> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/datasets/${datasetId}`, { signal });
+  if (!response.ok) throw await apiError(response);
+  return (await response.json()) as DatasetSummary;
 }
 
 export async function importDataset(file: File): Promise<DatasetSummary> {
@@ -42,4 +56,20 @@ export async function deleteDataset(datasetId: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) throw await apiError(response);
+}
+
+export async function searchDatasetBM25(
+  datasetId: string,
+  query: string,
+  topK: number,
+  signal?: AbortSignal,
+): Promise<BM25SearchResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/datasets/${datasetId}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, methods: ["bm25"], top_k: topK }),
+    signal,
+  });
+  if (!response.ok) throw await apiError(response);
+  return (await response.json()) as BM25SearchResponse;
 }

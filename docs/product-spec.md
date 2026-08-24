@@ -19,7 +19,7 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
 - The project uses the MIT License.
 
-## M2 acceptance scope
+## Implemented through M2
 
 M2 implements:
 
@@ -30,14 +30,27 @@ M2 implements:
 - frontend file selection/drag-and-drop, validation feedback, statistics, pagination, deletion confirmation, and UI states;
 - automated coverage of valid and invalid import, rollback, pagination, and cascade behavior.
 
-No embedding is generated in M2.
+No embedding is generated through M3.
 
-## Explicitly outside M2
+## M3 acceptance scope
 
-- Text normalization and BM25 indexing/search
+M3 implements:
+
+- deterministic NFKC normalization;
+- lowercase letter tokens and numeric tokens;
+- Chinese character unigrams plus adjacent bigrams, with punctuation and whitespace as boundaries;
+- one SQLite memory as one `rank-bm25` document;
+- a process-local, per-dataset BM25 index cache;
+- cache clearing after successful import and per-dataset invalidation after successful deletion;
+- stable `memory_id` tie-breaking and `top_k` from 1 to 50;
+- one BM25 search API and a dedicated Search page with raw scores, evidence, and latency;
+- explicit rejection of Dense and Hybrid rather than placeholder results.
+
+## Explicitly outside M3
+
 - Sentence Transformer loading and embeddings
-- Dense, Hybrid, or any retrieval endpoint
-- Score, ranking, latency, and comparison visualization
+- Dense and Hybrid/RRF retrieval
+- Three-method comparison and charts
 - Evaluation execution and metric calculation
 
 ## v0.1 non-goals

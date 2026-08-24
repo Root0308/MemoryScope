@@ -17,6 +17,8 @@ from app.schemas.datasets import (
     MAX_FILE_BYTES,
     MemoryPageResponse,
 )
+from app.schemas.search import SearchRequest, SearchResponse
+from app.search.bm25 import DatasetNotFoundError, search_bm25
 
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -103,7 +105,12 @@ async def import_dataset_route(request: Request) -> DatasetSummary:
         ) from error
 
     try:
-        return import_dataset(request.app.state.settings.database_path, payload)
+        dataset = import_dataset(
+            request.app.state.settings.database_path,
+            payload,
+        )
+        request.app.state.bm25_cache.clear()
+        return dataset
     except sqlite3.DatabaseError as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -147,6 +154,46 @@ async def list_memories_route(
     return memory_page
 
 
+@router.post("/{dataset_id}/search", response_model=SearchResponse)
+async def search_dataset_route(
+    request: Request,
+    dataset_id: str,
+    payload: SearchRequest,
+) -> SearchResponse:
+    unsupported = sorted(set(payload.methods) - {"bm25"})
+    if unsupported:
+        requested = ", ".join(unsupported)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "method_not_supported",
+                "message": (
+                    f"Search method(s) {requested} are not supported in M3. "
+                    "Dense and Hybrid search will be added in later milestones."
+                ),
+            },
+        )
+    if payload.methods != ["bm25"]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "invalid_methods",
+                "message": "M3 accepts exactly one search method: bm25.",
+            },
+        )
+
+    try:
+        return search_bm25(
+            request.app.state.settings.database_path,
+            dataset_id,
+            payload.query,
+            payload.top_k,
+            request.app.state.bm25_cache,
+        )
+    except DatasetNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Dataset not found.") from error
+
+
 @router.delete("/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_dataset_route(request: Request, dataset_id: str) -> Response:
     deleted = delete_dataset(
@@ -155,4 +202,5 @@ async def delete_dataset_route(request: Request, dataset_id: str) -> Response:
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Dataset not found.")
+    request.app.state.bm25_cache.invalidate(dataset_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

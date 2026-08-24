@@ -78,6 +78,54 @@ Returns memories in source order. `page` starts at 1; `page_size` is 1–100.
 
 Deletes the dataset and all related memories, evaluation cases, and relevance rows in SQLite. Returns `204 No Content` or `404`.
 
-## Not implemented in M2
+### `POST /datasets/{id}/search`
 
-Retrieval, scores, BM25, Dense, Hybrid, visual comparison, and evaluation execution endpoints do not exist yet.
+M3 supports exactly one method, BM25:
+
+```json
+{
+  "query": "用户喜欢什么界面主题？",
+  "methods": ["bm25"],
+  "top_k": 10
+}
+```
+
+`top_k` must be an integer from 1 to 50. Empty, whitespace-only, and punctuation-only queries return `422`. A missing dataset returns `404`.
+
+Example response:
+
+```json
+{
+  "query": "用户喜欢什么界面主题？",
+  "method": "bm25",
+  "top_k": 10,
+  "total_memories": 4,
+  "timing": {
+    "total_ms": 0.186,
+    "index_ms": 0.003,
+    "search_ms": 0.183,
+    "cache_hit": true
+  },
+  "results": [
+    {
+      "final_rank": 1,
+      "memory_id": "mem-001",
+      "conversation_id": "conv-001",
+      "role": "user",
+      "content": "我更喜欢深色主题。",
+      "timestamp": "2026-08-20T18:00:00+08:00",
+      "metadata": { "source": "sample" },
+      "bm25_raw": 4.6173414449274865,
+      "bm25_rank": 1
+    }
+  ]
+}
+```
+
+Timing is measured in milliseconds and varies by machine. Equal BM25 scores are ordered by `memory_id`. The first request may build the process-local index; later requests can report `cache_hit: true`.
+
+Requests containing `dense` or `hybrid` return `422` with `code: method_not_supported`; no substitute or fabricated scores are returned.
+
+## Not implemented in M3
+
+Dense retrieval, Hybrid/RRF, multi-method comparison, charts, and evaluation execution endpoints do not exist yet.

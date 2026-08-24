@@ -228,6 +228,53 @@ def list_memories(
     )
 
 
+def load_memories_for_search(
+    database_path: Path,
+    dataset_id: str,
+) -> list[MemoryResponse] | None:
+    with connect_database(database_path) as connection:
+        dataset_exists = connection.execute(
+            "SELECT 1 FROM datasets WHERE id = ?",
+            (dataset_id,),
+        ).fetchone()
+        if dataset_exists is None:
+            return None
+
+        rows = connection.execute(
+            """
+            SELECT
+                source_id,
+                conversation_id,
+                position,
+                role,
+                content,
+                timestamp,
+                metadata_json
+            FROM memories
+            WHERE dataset_id = ?
+            ORDER BY position ASC, id ASC
+            """,
+            (dataset_id,),
+        ).fetchall()
+
+    return [
+        MemoryResponse(
+            id=row["source_id"],
+            conversation_id=row["conversation_id"],
+            position=row["position"],
+            role=row["role"],
+            content=row["content"],
+            timestamp=row["timestamp"],
+            metadata=(
+                json.loads(row["metadata_json"])
+                if row["metadata_json"] is not None
+                else None
+            ),
+        )
+        for row in rows
+    ]
+
+
 def delete_dataset(database_path: Path, dataset_id: str) -> bool:
     with connect_database(database_path) as connection:
         cursor = connection.execute(

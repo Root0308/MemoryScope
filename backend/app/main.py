@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.db import initialize_database
+from app.search.bm25 import BM25IndexCache
 
 
 @asynccontextmanager
@@ -22,6 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = settings or get_settings()
+    application.state.bm25_cache = BM25IndexCache()
 
     application.add_middleware(
         CORSMiddleware,

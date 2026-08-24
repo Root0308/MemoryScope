@@ -30,3 +30,29 @@ export type MemoryPage = {
   page_size: number;
   total_pages: number;
 };
+
+export type BM25SearchResult = {
+  final_rank: number;
+  memory_id: string;
+  conversation_id: string;
+  role: Memory["role"];
+  content: string;
+  timestamp: string | null;
+  metadata: Record<string, unknown> | null;
+  bm25_raw: number;
+  bm25_rank: number;
+};
+
+export type BM25SearchResponse = {
+  query: string;
+  method: "bm25";
+  top_k: number;
+  total_memories: number;
+  timing: {
+    total_ms: number;
+    index_ms: number;
+    search_ms: number;
+    cache_hit: boolean;
+  };
+  results: BM25SearchResult[];
+};

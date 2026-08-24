@@ -1,17 +1,20 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M2 adds strict conversation JSON import, transactional SQLite storage, dataset management, and message-level memory preview.
+MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M3 adds the first real retrieval loop: deterministic multilingual tokenization and BM25 search over imported message-level memories.
 
-Implemented through M2:
+Implemented through M3:
 
 - React, TypeScript, and Vite frontend
 - FastAPI backend and health endpoint
 - Strict MemoryScope schema 0.1 validation
 - SQLite tables for datasets, memories, evaluation cases, and relevance labels
 - Atomic import, dataset list/detail, paginated memories, and cascading deletion
-- pytest coverage for validation, limits, rollback, pagination, and deletion
+- `rank-bm25` retrieval with per-dataset process-local index caching
+- Unicode NFKC, lowercased word/number tokens, and Chinese unigram/bigram tokenization
+- Stable score ties ordered by memory ID, `top_k` from 1 to 50, result evidence, and timing
+- pytest coverage for import, storage, tokenization, ranking, cache reuse/invalidation, and search API behavior
 
-BM25, Dense, Hybrid, retrieval, charts, and evaluation execution are intentionally not implemented yet.
+Dense, Hybrid, RRF, method comparison, charts, and evaluation execution are intentionally not implemented yet.
 
 ## Requirements
 
@@ -20,7 +23,7 @@ BM25, Dense, Hybrid, retrieval, charts, and evaluation execution are intentional
 - npm 10+
 - Python 3.11+
 
-No paid API, API key, model download, or external database is required for M2.
+No paid API, API key, model download, or external database is required for M3.
 
 ## Start the backend on Windows PowerShell
 
@@ -72,6 +75,28 @@ Invoke-RestMethod `
 ```
 
 Import is all-or-nothing: invalid data is rejected and the transaction is rolled back.
+
+## Search the example with BM25
+
+In the frontend, choose **Search BM25** on a dataset and submit a query. The Search page shows the raw score, stable rank, memory evidence, and measured local latency.
+
+PowerShell API example, replacing `<dataset-id>` with the imported dataset ID:
+
+```powershell
+$searchBody = @{
+  query = "用户喜欢什么界面主题？"
+  methods = @("bm25")
+  top_k = 10
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
+  -Method Post `
+  -ContentType application/json `
+  -Body $searchBody
+```
+
+BM25 indexes are built from SQLite memories on first search and reused in the backend process. Successful dataset import clears cached indexes; successful deletion invalidates that dataset's index.
 
 ## Verification
 
