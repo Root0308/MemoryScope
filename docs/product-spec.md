@@ -4,55 +4,51 @@
 
 MemoryScope is a local-first, single-user tool for inspecting and evaluating retrieval over agent conversation memory.
 
-The core workflow is:
+The v0.1 workflow is to import a strict conversation dataset, retrieve message-level memories with BM25, Dense, or Hybrid search, inspect ranking evidence and latency, compare methods, and run annotated Hit Rate, Recall, and MRR evaluation.
 
-1. Import one strictly validated conversation JSON dataset.
-2. Search message-level memories with BM25, Dense, or Hybrid retrieval.
-3. Inspect rankings, score components, and retrieval latency.
-4. Compare retrieval methods.
-5. Evaluate annotated queries with Hit Rate, Recall, and MRR.
-
-## Confirmed v0.1 decisions
+## Confirmed decisions
 
 - One message is one retrievable memory; there is no automatic chunking.
 - A dataset contains at most 5,000 messages.
 - There is one strict JSON format.
-- Dense retrieval uses `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
-- Dense search uses exact cosine similarity, not ANN.
-- BM25 uses `rank-bm25`.
-- Text normalization uses Unicode NFKC, English tokens, and Chinese character bigrams.
-- Hybrid retrieval uses Reciprocal Rank Fusion with a rank constant of 60.
-- Data is stored in local SQLite and conversation content is not uploaded.
+- Dense retrieval will use `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` with exact cosine similarity.
+- BM25 will use `rank-bm25`, Unicode NFKC, English tokens, and Chinese character bigrams.
+- Hybrid retrieval will use Reciprocal Rank Fusion with constant 60.
+- Data remains in local SQLite and conversation content is not uploaded.
 - No paid API or API key is required.
 - Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
-- The project is licensed under MIT.
+- The project uses the MIT License.
 
-## M1 scope
+## M2 acceptance scope
 
-M1 provides only the runnable frontend and backend foundation, health reporting, SQLite configuration, tests, and documentation.
+M2 implements:
 
-## Explicitly outside M1
+- strict schema 0.1 parsing and validation;
+- limits of 20 MB, 5,000 messages, 200 evaluation cases, and 20,000 characters per message;
+- atomic SQLite import into `datasets`, `memories`, `evaluation_cases`, and `evaluation_relevances`;
+- dataset list/detail, paginated memory preview, and cascading deletion APIs;
+- frontend file selection/drag-and-drop, validation feedback, statistics, pagination, deletion confirmation, and UI states;
+- automated coverage of valid and invalid import, rollback, pagination, and cascade behavior.
 
-- JSON import and validation runtime
-- Database schema creation
-- BM25 retrieval
+No embedding is generated in M2.
+
+## Explicitly outside M2
+
+- Text normalization and BM25 indexing/search
 - Sentence Transformer loading and embeddings
-- Dense or Hybrid retrieval
-- Retrieval visualization
-- Evaluation execution
+- Dense, Hybrid, or any retrieval endpoint
+- Score, ranking, latency, and comparison visualization
+- Evaluation execution and metric calculation
 
 ## v0.1 non-goals
 
 - Authentication or multiple users
-- Cloud synchronization
+- Cloud synchronization or conversation upload
 - Paid APIs or LLM answer generation
-- HNSW, vector databases, or distributed search
-- Automatic chunking
-- Reranking
-- Live agent integrations
+- ANN, vector databases, or distributed search
+- Automatic chunking, reranking, background queues, or live agent integrations
 - Model selection and tuning interfaces
-- Background job queues
 
 ## Independent implementation
 
-MemoryScope starts from an empty repository. It does not copy code, project structure, data, figures, benchmarks, or prose from the earlier group project.
+MemoryScope started from an empty repository. It does not copy code, structure, data, figures, benchmarks, charts, or prose from the earlier group project.

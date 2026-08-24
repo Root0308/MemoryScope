@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchHealth } from "./api/health";
+import { DatasetPage } from "./features/datasets/DatasetPage";
 import type { HealthResponse } from "./types/health";
 
 
@@ -46,58 +47,23 @@ function App() {
 
   return (
     <main className="shell">
-      <section className="hero" aria-labelledby="page-title">
+      <header className="topbar" aria-labelledby="page-title">
+        <div>
         <p className="eyebrow">LOCAL AGENT MEMORY WORKSPACE</p>
         <h1 id="page-title">MemoryScope</h1>
         <p className="lede">
-          Inspect, compare, and evaluate how agents retrieve conversation
-          memory.
+          Import strict conversation JSON and inspect one message per memory.
         </p>
-
-        <div className={"status-card status-" + health.kind}>
-          <div>
-            <p className="status-kicker">API HEALTH</p>
-            <div className="status-line">
-              <span className="status-dot" aria-hidden="true" />
-              <strong>{statusLabel}</strong>
-            </div>
-          </div>
-
-          {health.kind === "online" && (
-            <dl>
-              <div>
-                <dt>Service</dt>
-                <dd>{health.data.service}</dd>
-              </div>
-              <div>
-                <dt>Version</dt>
-                <dd>{health.data.version}</dd>
-              </div>
-              <div>
-                <dt>Storage</dt>
-                <dd>
-                  {health.data.database.engine} ·{" "}
-                  {health.data.database.status}
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {health.kind === "offline" && (
-            <div className="offline-detail">
-              <p>{health.message}</p>
-              <button type="button" onClick={() => void checkHealth()}>
-                Try again
-              </button>
-            </div>
-          )}
         </div>
-
-        <footer>
-          <span>v0.1 · M1 foundation</span>
-          <span>No conversation data leaves this machine.</span>
-        </footer>
-      </section>
+        <div className={"health-pill status-" + health.kind}>
+          <div className="status-line"><span className="status-dot" aria-hidden="true" /><strong>{statusLabel}</strong></div>
+          {health.kind === "online" && <span>{health.data.service} · v{health.data.version} · {health.data.database.engine}</span>}
+          {health.kind === "offline" && <button type="button" onClick={() => void checkHealth()}>Retry</button>}
+        </div>
+      </header>
+      {health.kind === "offline" && <div className="global-error" role="alert">{health.message}</div>}
+      <DatasetPage />
+      <footer><span>v0.1 · M2 JSON import & SQLite</span><span>No conversation data leaves this machine.</span></footer>
     </main>
   );
 }
