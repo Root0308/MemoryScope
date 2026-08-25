@@ -23,6 +23,22 @@ class SearchRequest(StrictSchema):
         return value
 
 
+class CompareSearchRequest(StrictSchema):
+    query: Content
+    top_k: int = Field(ge=1, le=50)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_be_searchable(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("query must not be empty")
+        if not tokenize(value):
+            raise ValueError(
+                "query must contain searchable letters, numbers, or Chinese characters"
+            )
+        return value
+
+
 class BM25SearchTiming(BaseModel):
     total_ms: float
     index_ms: float
@@ -125,3 +141,38 @@ class HybridSearchResponse(BaseModel):
     model: DenseModelInfo
     timing: HybridSearchTiming
     results: list[HybridSearchResult]
+
+
+class CompareDenseModelInfo(DenseModelInfo):
+    embedding_signature: str
+
+
+class ComparisonRow(BaseModel):
+    memory_id: str
+    content: str
+    bm25_rank: int | None
+    dense_rank: int | None
+    hybrid_rank: int | None
+
+
+class CompareSearchTiming(BaseModel):
+    preparation_ms: float
+    bm25_ms: float
+    dense_ms: float
+    hybrid_fusion_ms: float
+    total_ms: float
+
+
+class CompareSearchResponse(BaseModel):
+    dataset_id: str
+    query: str
+    top_k: int
+    total_memories: int
+    candidate_pool_size: int
+    rrf_k: int
+    model: CompareDenseModelInfo
+    timing: CompareSearchTiming
+    bm25_results: list[BM25SearchResult]
+    dense_results: list[DenseSearchResult]
+    hybrid_results: list[HybridSearchResult]
+    comparison_rows: list[ComparisonRow]

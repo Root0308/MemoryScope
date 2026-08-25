@@ -1,8 +1,8 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M5 supports BM25, local multilingual Dense search, and explainable Hybrid RRF over imported message-level memories.
+MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M6 supports single BM25, local multilingual Dense, explainable Hybrid RRF, and one-query three-method rank comparison over imported message-level memories.
 
-Implemented through M5:
+Implemented through M6:
 
 - React, TypeScript, and Vite frontend
 - FastAPI backend and health endpoint
@@ -17,9 +17,11 @@ Implemented through M5:
 - Exact cosine similarity, stable ties, transactional vector builds, corruption detection, and persisted reuse
 - Hybrid retrieval over the BM25/Dense candidate union with deterministic Reciprocal Rank Fusion (`rrf_k = 60`)
 - Per-result branch ranks, raw diagnostic scores, RRF contributions, candidate-pool size, and stage timings
+- Compare API that executes BM25 and Dense once, reuses their candidate ranks for Hybrid, and encodes the Dense query once
+- Responsive three-column results, accessible rank matrix, and Recharts timing visualization with shared preparation shown separately
 - pytest coverage using an injectable fake provider; the test suite never downloads the real model
 
-Simultaneous three-method comparison, charts, and evaluation execution are intentionally not implemented yet.
+Recall, MRR, evaluation-case execution, and aggregate evaluation reports are intentionally not implemented yet; those belong to M7.
 
 ## Requirements
 
@@ -83,7 +85,7 @@ Import is all-or-nothing: invalid data is rejected and the transaction is rolled
 
 ## Search the example
 
-In the frontend, choose **Search** on a dataset, then select BM25, Dense, or Hybrid. BM25 shows raw lexical scores. Dense shows cosine similarity, fixed model details, initialization/vector-build status, and per-stage local latency. Hybrid shows both branches and an explicit RRF explanation for every result.
+In the frontend, choose **Search** on a dataset. **Single Search** preserves the BM25, Dense, and Hybrid workflows. **Compare Methods** accepts one query and `top_k`, then shows three result columns, a memory-aligned rank matrix, and method-specific timing bars. BM25 raw and Dense cosine values remain visible only in their own result columns; the comparison is based on ranks, not a shared score scale.
 
 PowerShell API example, replacing `<dataset-id>` with the imported dataset ID:
 
@@ -140,6 +142,33 @@ Invoke-RestMethod `
 ```
 
 For each branch, Hybrid retrieves `min(dataset_memory_count, max(100, 5 * top_k))` candidates. It takes the candidate union and computes `1 / (60 + rank)` for each available branch; a missing branch contributes zero. The final score is the sum of those rank contributions, with `memory_id` as the stable tie-break. BM25 raw scores and Dense cosine similarities have different scales: they are never directly added or normalized together.
+
+Compare API example:
+
+```powershell
+$compareBody = @{
+  query = "用户喜欢什么界面主题？"
+  top_k = 10
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search/compare `
+  -Method Post `
+  -ContentType application/json `
+  -Body $compareBody
+```
+
+A Compare request calculates the BM25 and Dense candidate rankings once and reuses them for Hybrid. The Dense query vector is encoded once. `comparison_rows` aligns the top-k result union by `memory_id`; a method rank is `null` when that memory is outside that method's top-k.
+
+Compare timing fields deliberately separate shared and method-specific work:
+
+- `preparation_ms`: BM25 index access/build plus Dense dataset loading, model initialization, and memory-vector inspection/build.
+- `bm25_ms`: BM25 query scoring and stable ranking only.
+- `dense_ms`: one query embedding plus exact cosine scoring and stable ranking.
+- `hybrid_fusion_ms`: RRF fusion of the already-computed candidate ranks.
+- `total_ms`: full request wall-clock time, including response alignment/assembly.
+
+The timing chart contains only `bm25_ms`, `dense_ms`, and `hybrid_fusion_ms`; shared preparation is displayed separately and is not repeated across methods. Compare is an exploratory rank-inspection tool, not formal evaluation. Recall and MRR arrive in M7.
 
 ## Verification
 

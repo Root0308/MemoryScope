@@ -19,7 +19,7 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
 - The project uses the MIT License.
 
-## Implemented through M5
+## Implemented through M6
 
 M2 implements:
 
@@ -60,10 +60,20 @@ M5 implements:
 - Dense model signature/build status plus BM25, Dense, fusion, and total timing evidence;
 - an enabled Hybrid Search UI with local-model loading states and a per-result scoring explanation.
 
-## Explicitly outside M5
+M6 implements:
 
-- Three-method comparison and charts
+- a dedicated Compare API that runs BM25 and Dense once per request and reuses the same candidate rankings for Hybrid;
+- one Dense query encoding per comparison and model/vector preparation shared rather than attributed three times;
+- top-k BM25, Dense, and Hybrid results plus a deduplicated `comparison_rows` union aligned by `memory_id`;
+- explicit `null` ranks when a memory is outside one method's top-k;
+- separate preparation, BM25, Dense, RRF fusion, and total wall-clock timing definitions;
+- a Single Search / Compare Methods switch, three responsive result columns, a readable rank matrix, and a method-specific Recharts timing chart;
+- rank comparison without directly comparing, adding, or jointly normalizing BM25 raw and Dense cosine values.
+
+## Explicitly outside M6
+
 - Evaluation execution and metric calculation
+- Recall, MRR, and evaluation-case aggregation
 
 ## v0.1 non-goals
 

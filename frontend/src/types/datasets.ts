@@ -136,3 +136,32 @@ export type SearchResponse =
   | BM25SearchResponse
   | DenseSearchResponse
   | HybridSearchResponse;
+
+export type ComparisonRow = {
+  memory_id: string;
+  content: string;
+  bm25_rank: number | null;
+  dense_rank: number | null;
+  hybrid_rank: number | null;
+};
+
+export type CompareSearchResponse = {
+  dataset_id: string;
+  query: string;
+  top_k: number;
+  total_memories: number;
+  candidate_pool_size: number;
+  rrf_k: number;
+  model: DenseModelInfo & { embedding_signature: string };
+  timing: {
+    preparation_ms: number;
+    bm25_ms: number;
+    dense_ms: number;
+    hybrid_fusion_ms: number;
+    total_ms: number;
+  };
+  bm25_results: BM25SearchResult[];
+  dense_results: DenseSearchResult[];
+  hybrid_results: HybridSearchResult[];
+  comparison_rows: ComparisonRow[];
+};

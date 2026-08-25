@@ -25,11 +25,14 @@ from app.schemas.datasets import (
 )
 from app.schemas.search import (
     BM25SearchResponse,
+    CompareSearchRequest,
+    CompareSearchResponse,
     DenseSearchResponse,
     HybridSearchResponse,
     SearchRequest,
 )
 from app.search.bm25 import DatasetNotFoundError, search_bm25
+from app.search.compare import DatasetSnapshotChangedError, search_compare
 from app.search.dense import EmptyDatasetError, EmbeddingPersistenceError
 from app.search.hybrid import search_hybrid
 
@@ -234,6 +237,69 @@ async def search_dataset_route(
             detail={
                 "code": "empty_dataset",
                 "message": "Dense and Hybrid search require at least one memory.",
+            },
+        ) from error
+    except EmbeddingModelLoadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "model_initialization_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingGenerationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_generation_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_persistence_failed",
+                "message": str(error),
+            },
+        ) from error
+
+
+@router.post(
+    "/{dataset_id}/search/compare",
+    response_model=CompareSearchResponse,
+)
+async def compare_search_methods_route(
+    request: Request,
+    dataset_id: str,
+    payload: CompareSearchRequest,
+) -> CompareSearchResponse:
+    try:
+        return await run_in_threadpool(
+            search_compare,
+            request.app.state.settings.database_path,
+            dataset_id,
+            payload.query,
+            payload.top_k,
+            request.app.state.bm25_cache,
+            request.app.state.dense_search,
+        )
+    except DatasetNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Dataset not found.") from error
+    except EmptyDatasetError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "empty_dataset",
+                "message": "Compare search requires at least one memory.",
+            },
+        ) from error
+    except DatasetSnapshotChangedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "dataset_snapshot_changed",
+                "message": str(error),
             },
         ) from error
     except EmbeddingModelLoadError as error:

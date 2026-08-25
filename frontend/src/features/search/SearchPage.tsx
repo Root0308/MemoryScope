@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import { fetchDataset, searchDataset } from "../../api/datasets";
@@ -10,6 +10,10 @@ import type {
   SearchMethod,
   SearchResponse,
 } from "../../types/datasets";
+
+const ComparePanel = lazy(() =>
+  import("./ComparePanel").then((module) => ({ default: module.ComparePanel })),
+);
 
 type Props = {
   datasetId: string;
@@ -104,6 +108,7 @@ export function SearchPage({ datasetId, onBack }: Props) {
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState("10");
   const [state, setState] = useState<SearchState>({ kind: "idle" });
+  const [viewMode, setViewMode] = useState<"single" | "compare">("single");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -153,6 +158,32 @@ export function SearchPage({ datasetId, onBack }: Props) {
   return (
     <div className="search-page">
       <button className="back-button" type="button" onClick={onBack}>← Back to datasets</button>
+
+      <div className="search-mode-switch" role="group" aria-label="Search page mode">
+        <button
+          type="button"
+          className={viewMode === "single" ? "mode-active" : ""}
+          aria-pressed={viewMode === "single"}
+          onClick={() => setViewMode("single")}
+        >
+          Single Search
+        </button>
+        <button
+          type="button"
+          className={viewMode === "compare" ? "mode-active" : ""}
+          aria-pressed={viewMode === "compare"}
+          onClick={() => setViewMode("compare")}
+        >
+          Compare Methods
+        </button>
+      </div>
+
+      {viewMode === "compare" ? (
+        <Suspense fallback={<div className="state-box search-state" role="status">Loading comparison workspace…</div>}>
+          <ComparePanel dataset={dataset} datasetError={datasetError} datasetId={datasetId} />
+        </Suspense>
+      ) : (
+        <>
 
       <section className="panel search-hero" aria-labelledby="search-title">
         <div>
@@ -323,6 +354,8 @@ export function SearchPage({ datasetId, onBack }: Props) {
             ))}
           </div>
         </section>
+      )}
+        </>
       )}
     </div>
   );

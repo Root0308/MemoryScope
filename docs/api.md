@@ -257,8 +257,83 @@ If a result is absent from one branch candidate pool, that branch's rank and raw
 
 The Hybrid `model` object is the Dense embedding identity/signature and lifecycle state. Its name, exact revision, dimension, normalized flag, and embedding version must all match persisted vectors; otherwise the M4 transactional rebuild behavior applies. The nested timing object separates BM25, Dense, and RRF fusion work.
 
+### `POST /datasets/{id}/search/compare`
+
+Compare accepts one query and `top_k` without a `methods` array:
+
+```json
+{
+  "query": "用户喜欢什么界面主题？",
+  "top_k": 10
+}
+```
+
+One request calculates the BM25 candidate ranking once and the Dense candidate ranking once. Dense encodes the query once. Hybrid consumes those same branch ranks rather than issuing another BM25 or Dense retrieval. Imported datasets are immutable, so the process-local BM25 index and SQLite Dense records represent the same dataset snapshot; a detected count mismatch returns `409` with `code: dataset_snapshot_changed`.
+
+Response shape (result objects use the same fields as their single-method APIs):
+
+```json
+{
+  "dataset_id": "uuid",
+  "query": "用户喜欢什么界面主题？",
+  "top_k": 10,
+  "total_memories": 4,
+  "candidate_pool_size": 4,
+  "rrf_k": 60,
+  "model": {
+    "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "model_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "dimension": 384,
+    "normalized": true,
+    "embedding_version": "memoryscope-dense-v1",
+    "initialized_this_request": false,
+    "memory_embeddings_built": false,
+    "embedding_signature": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2@e8f8c211226b894fcb81acc59f3b34ba3efd5f42|dimension=384|normalized=true|version=memoryscope-dense-v1"
+  },
+  "timing": {
+    "preparation_ms": 0.412,
+    "bm25_ms": 0.219,
+    "dense_ms": 18.714,
+    "hybrid_fusion_ms": 0.086,
+    "total_ms": 19.612
+  },
+  "bm25_results": [
+    { "final_rank": 1, "memory_id": "mem-001", "bm25_raw": 4.6173414449, "bm25_rank": 1 }
+  ],
+  "dense_results": [
+    { "final_rank": 1, "memory_id": "mem-002", "dense_cosine": 0.7671473622, "dense_rank": 1 }
+  ],
+  "hybrid_results": [
+    { "final_rank": 1, "memory_id": "mem-001", "rrf_total": 0.0325224749 }
+  ],
+  "comparison_rows": [
+    {
+      "memory_id": "mem-001",
+      "content": "我更喜欢深色主题。",
+      "bm25_rank": 1,
+      "dense_rank": 2,
+      "hybrid_rank": 1
+    }
+  ]
+}
+```
+
+The abbreviated result objects above omit their unchanged provenance and explanation fields for readability. Actual responses return the complete BM25, Dense, and Hybrid result schemas.
+
+`comparison_rows` is the deduplicated union of the three returned top-k lists. A rank is `null` when the memory is outside that method's top-k. Rows are ordered by their best available rank, then `memory_id`.
+
+Timing semantics:
+
+- `preparation_ms`: BM25 index access/build and Dense dataset/model/memory-vector preparation. This is shared work and is not attributed to all three methods.
+- `bm25_ms`: BM25 query scoring and stable ranking.
+- `dense_ms`: the single query embedding plus exact cosine scoring and stable ranking.
+- `hybrid_fusion_ms`: RRF fusion using the already-computed branch candidates.
+- `total_ms`: complete Compare wall-clock time, including alignment and response construction.
+
+BM25 raw and Dense cosine scores remain on different scales. Compare does not add, normalize, or plot them on one numeric axis; it compares ranks. This endpoint is exploratory visualization, not evaluation, and does not calculate Recall, MRR, or use `evaluation_cases`.
+
 Unknown methods return `422` with `code: method_not_supported`. No substitute or fabricated scores are returned.
 
-## Not implemented in M5
+## Not implemented in M6
 
-Multi-method comparison, charts, and evaluation execution endpoints do not exist yet.
+Evaluation execution, Recall, MRR, and evaluation-case aggregate reports do not exist yet.

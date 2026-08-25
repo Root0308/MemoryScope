@@ -1,5 +1,6 @@
 import type {
   BM25SearchResponse,
+  CompareSearchResponse,
   DatasetListResponse,
   DatasetSummary,
   MemoryPage,
@@ -91,4 +92,23 @@ export async function searchDataset(
   });
   if (!response.ok) throw await apiError(response);
   return (await response.json()) as SearchResponse;
+}
+
+export async function compareDatasetSearch(
+  datasetId: string,
+  query: string,
+  topK: number,
+  signal?: AbortSignal,
+): Promise<CompareSearchResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/datasets/${datasetId}/search/compare`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, top_k: topK }),
+      signal,
+    },
+  );
+  if (!response.ok) throw await apiError(response);
+  return (await response.json()) as CompareSearchResponse;
 }

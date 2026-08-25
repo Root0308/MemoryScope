@@ -80,3 +80,9 @@ The candidate union is fused with `rrf_k = 60` and one-based ranks:
 - `rrf_total = rrf_bm25 + rrf_dense`
 
 BM25 raw scores and Dense cosine similarities are retained only as request-time explanation fields. Their scales differ, so MemoryScope never directly adds or jointly normalizes them. RRF uses branch ranks only. Hybrid results are deterministic: branch ties and final RRF ties use ascending `memory_id`.
+
+## M6 comparison data
+
+Compare mode adds no fields to the imported JSON and persists no comparison run. A Compare response is derived from one immutable imported dataset, one query, and one `top_k`. It returns the three top-k lists plus `comparison_rows`, which is the deduplicated union of those lists keyed by `memory_id`.
+
+Each row contains `bm25_rank`, `dense_rank`, and `hybrid_rank`. A rank is `null` when that memory is not present in the corresponding method's top-k, even if it appeared in a deeper candidate pool. The content is copied from the same message-level memory snapshot. Compare does not read or calculate `evaluation_cases`, Recall, or MRR; those remain M7 concerns.
