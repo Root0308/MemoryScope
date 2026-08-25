@@ -20,7 +20,7 @@ M2 enforces one strict JSON object. Unknown fields and type coercion are rejecte
 
 ## Message / memory
 
-Every message is stored as exactly one memory in source order. M3 indexes `content` as one BM25 document without automatic chunking or embedding.
+Every message is stored as exactly one memory in source order. BM25 treats `content` as one lexical document, and Dense stores one vector for the same memory. There is no automatic chunking.
 
 | Field | Required | Type | Constraint |
 | --- | --- | --- | --- |
@@ -54,3 +54,17 @@ See [`examples/sample-dataset.json`](../examples/sample-dataset.json) for a comp
 ## M3 BM25 text treatment
 
 Search does not change the imported JSON or stored content. For BM25 only, text is normalized with Unicode NFKC and lowercased; consecutive letters and numbers become tokens, while each contiguous Chinese run contributes character unigrams and adjacent character bigrams. Whitespace and punctuation are boundaries and do not become tokens.
+
+## M4 local embedding storage
+
+Embeddings are derived local data and are not fields in the import JSON. MemoryScope stores each vector as a float32 BLOB in `memory_embeddings`, keyed to the SQLite memory row. Each BLOB is accompanied by the fixed model name, exact Hugging Face revision, dimension, normalized flag, and embedding version.
+
+The current configuration is:
+
+- model: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- model revision: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- dimension: 384
+- normalized: `true`
+- embedding version: `memoryscope-dense-v1`
+
+Matching, valid BLOBs are reused. Missing vectors are generated in a batch. A missing/different revision, any other model/configuration mismatch, corrupt BLOB, wrong dimension, non-finite value, or zero vector triggers a transactional rebuild rather than mixing incompatible vectors. Databases created before revision pinning are migrated in place; their revision-less embeddings are rebuilt on the next Dense query. Deleting a dataset cascades to its embeddings.

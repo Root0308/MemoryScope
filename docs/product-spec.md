@@ -11,7 +11,7 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - One message is one retrievable memory; there is no automatic chunking.
 - A dataset contains at most 5,000 messages.
 - There is one strict JSON format.
-- Dense retrieval will use `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` with exact cosine similarity.
+- Dense retrieval uses `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` pinned to Hugging Face revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`, with exact cosine similarity.
 - BM25 will use `rank-bm25`, Unicode NFKC, English tokens, and Chinese character bigrams.
 - Hybrid retrieval will use Reciprocal Rank Fusion with constant 60.
 - Data remains in local SQLite and conversation content is not uploaded.
@@ -19,7 +19,7 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
 - The project uses the MIT License.
 
-## Implemented through M2
+## Implemented through M4
 
 M2 implements:
 
@@ -30,9 +30,7 @@ M2 implements:
 - frontend file selection/drag-and-drop, validation feedback, statistics, pagination, deletion confirmation, and UI states;
 - automated coverage of valid and invalid import, rollback, pagination, and cascade behavior.
 
-No embedding is generated through M3.
-
-## M3 acceptance scope
+M3 implements:
 
 M3 implements:
 
@@ -46,10 +44,19 @@ M3 implements:
 - one BM25 search API and a dedicated Search page with raw scores, evidence, and latency;
 - explicit rejection of Dense and Hybrid rather than placeholder results.
 
-## Explicitly outside M3
+M4 implements:
 
-- Sentence Transformer loading and embeddings
-- Dense and Hybrid/RRF retrieval
+- an injectable embedding provider with fake-provider automated tests and a lazy CPU Sentence Transformer implementation;
+- fixed model name and exact revision, 384-dimensional normalized float32 vectors, and embedding version metadata;
+- a compatible SQLite v2-to-v3 migration plus transactional BLOB persistence;
+- first-query batch generation, revision/configuration/corruption detection, rebuild, in-process reuse, and post-restart SQLite reuse;
+- exact cosine ranking with stable `memory_id` tie-breaking and `top_k` from 1 to 50;
+- Dense response evidence, model/build flags, and model-load, embedding, and search timings;
+- a BM25/Dense single-method Search UI with explicit first-download and failure states.
+
+## Explicitly outside M4
+
+- Hybrid/RRF retrieval
 - Three-method comparison and charts
 - Evaluation execution and metric calculation
 

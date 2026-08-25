@@ -76,11 +76,13 @@ Returns memories in source order. `page` starts at 1; `page_size` is 1–100.
 
 ### `DELETE /datasets/{id}`
 
-Deletes the dataset and all related memories, evaluation cases, and relevance rows in SQLite. Returns `204 No Content` or `404`.
+Deletes the dataset and all related memories, embeddings, evaluation cases, and relevance rows in SQLite. Returns `204 No Content` or `404`.
 
 ### `POST /datasets/{id}/search`
 
-M3 supports exactly one method, BM25:
+M4 accepts exactly one method per request: BM25 or Dense. Multi-method comparison is not implemented yet.
+
+BM25 request:
 
 ```json
 {
@@ -124,8 +126,62 @@ Example response:
 
 Timing is measured in milliseconds and varies by machine. Equal BM25 scores are ordered by `memory_id`. The first request may build the process-local index; later requests can report `cache_hit: true`.
 
-Requests containing `dense` or `hybrid` return `422` with `code: method_not_supported`; no substitute or fabricated scores are returned.
+Dense request:
 
-## Not implemented in M3
+```json
+{
+  "query": "What interface theme does the user prefer?",
+  "methods": ["dense"],
+  "top_k": 10
+}
+```
 
-Dense retrieval, Hybrid/RRF, multi-method comparison, charts, and evaluation execution endpoints do not exist yet.
+Dense response shape:
+
+```json
+{
+  "query": "What interface theme does the user prefer?",
+  "method": "dense",
+  "top_k": 10,
+  "total_memories": 4,
+  "model": {
+    "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "model_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "dimension": 384,
+    "normalized": true,
+    "embedding_version": "memoryscope-dense-v1",
+    "initialized_this_request": true,
+    "memory_embeddings_built": true
+  },
+  "timing": {
+    "total_ms": 842.317,
+    "model_load_ms": 610.221,
+    "memory_embedding_ms": 205.472,
+    "query_embedding_ms": 25.913,
+    "search_ms": 0.128
+  },
+  "results": [
+    {
+      "final_rank": 1,
+      "memory_id": "mem-001",
+      "conversation_id": "conv-001",
+      "role": "user",
+      "content": "我更喜欢深色主题。",
+      "timestamp": "2026-08-20T18:00:00+08:00",
+      "metadata": { "source": "sample" },
+      "dense_cosine": 0.731245,
+      "dense_rank": 1
+    }
+  ]
+}
+```
+
+Dense timing is separated into model loading, memory embedding inspection/build, query embedding, and exact cosine search. `initialized_this_request` reports process-local model initialization. `memory_embeddings_built` reports whether any memory vectors were generated or rebuilt; `false` means compatible SQLite BLOBs were reused.
+
+The first Dense request may download the fixed model revision, then creates missing vectors transactionally. The exact revision is passed to Sentence Transformer and returned as `model.model_revision`. A missing/different revision, any other model/configuration mismatch, or invalid stored vector causes a full dataset rebuild. Model load failure returns `503` with `code: model_initialization_failed`; embedding generation or transactional persistence failures return `500` with explicit codes and no fabricated results.
+
+Requests containing `hybrid` return `422` with `code: method_not_supported`; requests containing both BM25 and Dense return `422` with `code: invalid_methods`. No substitute or fabricated scores are returned.
+
+## Not implemented in M4
+
+Hybrid/RRF, multi-method comparison, charts, and evaluation execution endpoints do not exist yet.

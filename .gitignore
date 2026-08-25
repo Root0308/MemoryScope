@@ -37,6 +37,9 @@ frontend/.vite/
 .huggingface/
 .model-cache/
 *.safetensors
+*.onnx
+*.pt
+*.pth
 
 # Editors and operating systems
 .idea/

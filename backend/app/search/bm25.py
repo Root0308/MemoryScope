@@ -9,9 +9,9 @@ from rank_bm25 import BM25Okapi
 from app.repositories.datasets import load_memories_for_search
 from app.schemas.datasets import MemoryResponse
 from app.schemas.search import (
+    BM25SearchResponse,
     BM25SearchResult,
-    SearchResponse,
-    SearchTiming,
+    BM25SearchTiming,
 )
 from app.search.tokenizer import tokenize
 
@@ -77,7 +77,7 @@ def search_bm25(
     query: str,
     top_k: int,
     cache: BM25IndexCache,
-) -> SearchResponse:
+) -> BM25SearchResponse:
     total_started = perf_counter()
     index_started = perf_counter()
     index, cache_hit = cache.get_or_build(
@@ -118,12 +118,12 @@ def search_bm25(
     search_ms = (perf_counter() - search_started) * 1_000
     total_ms = (perf_counter() - total_started) * 1_000
 
-    return SearchResponse(
+    return BM25SearchResponse(
         query=query,
         method="bm25",
         top_k=top_k,
         total_memories=len(index.memories),
-        timing=SearchTiming(
+        timing=BM25SearchTiming(
             total_ms=round(total_ms, 3),
             index_ms=round(index_ms, 3),
             search_ms=round(search_ms, 3),

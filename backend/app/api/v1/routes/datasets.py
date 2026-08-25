@@ -2,6 +2,12 @@ import sqlite3
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
+
+from app.embeddings.provider import (
+    EmbeddingGenerationError,
+    EmbeddingModelLoadError,
+)
 
 from app.repositories.datasets import (
     delete_dataset,
@@ -17,8 +23,13 @@ from app.schemas.datasets import (
     MAX_FILE_BYTES,
     MemoryPageResponse,
 )
-from app.schemas.search import SearchRequest, SearchResponse
+from app.schemas.search import (
+    BM25SearchResponse,
+    DenseSearchResponse,
+    SearchRequest,
+)
 from app.search.bm25 import DatasetNotFoundError, search_bm25
+from app.search.dense import EmptyDatasetError, EmbeddingPersistenceError
 
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -154,13 +165,16 @@ async def list_memories_route(
     return memory_page
 
 
-@router.post("/{dataset_id}/search", response_model=SearchResponse)
+@router.post(
+    "/{dataset_id}/search",
+    response_model=BM25SearchResponse | DenseSearchResponse,
+)
 async def search_dataset_route(
     request: Request,
     dataset_id: str,
     payload: SearchRequest,
-) -> SearchResponse:
-    unsupported = sorted(set(payload.methods) - {"bm25"})
+) -> BM25SearchResponse | DenseSearchResponse:
+    unsupported = sorted(set(payload.methods) - {"bm25", "dense"})
     if unsupported:
         requested = ", ".join(unsupported)
         raise HTTPException(
@@ -168,30 +182,70 @@ async def search_dataset_route(
             detail={
                 "code": "method_not_supported",
                 "message": (
-                    f"Search method(s) {requested} are not supported in M3. "
-                    "Dense and Hybrid search will be added in later milestones."
+                    f"Search method(s) {requested} are not supported in M4. "
+                    "Hybrid search will be added in a later milestone."
                 ),
             },
         )
-    if payload.methods != ["bm25"]:
+    if payload.methods not in (["bm25"], ["dense"]):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "code": "invalid_methods",
-                "message": "M3 accepts exactly one search method: bm25.",
+                "message": "M4 accepts exactly one search method: bm25 or dense.",
             },
         )
 
     try:
-        return search_bm25(
+        if payload.methods == ["bm25"]:
+            return search_bm25(
+                request.app.state.settings.database_path,
+                dataset_id,
+                payload.query,
+                payload.top_k,
+                request.app.state.bm25_cache,
+            )
+        return await run_in_threadpool(
+            request.app.state.dense_search.search,
             request.app.state.settings.database_path,
             dataset_id,
             payload.query,
             payload.top_k,
-            request.app.state.bm25_cache,
         )
     except DatasetNotFoundError as error:
         raise HTTPException(status_code=404, detail="Dataset not found.") from error
+    except EmptyDatasetError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "empty_dataset",
+                "message": "Dense search requires at least one memory.",
+            },
+        ) from error
+    except EmbeddingModelLoadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "model_initialization_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingGenerationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_generation_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_persistence_failed",
+                "message": str(error),
+            },
+        ) from error
 
 
 @router.delete("/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)

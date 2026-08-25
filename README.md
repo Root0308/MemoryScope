@@ -1,8 +1,8 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M3 adds the first real retrieval loop: deterministic multilingual tokenization and BM25 search over imported message-level memories.
+MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M4 supports BM25 and local multilingual Dense search over imported message-level memories.
 
-Implemented through M3:
+Implemented through M4:
 
 - React, TypeScript, and Vite frontend
 - FastAPI backend and health endpoint
@@ -12,9 +12,12 @@ Implemented through M3:
 - `rank-bm25` retrieval with per-dataset process-local index caching
 - Unicode NFKC, lowercased word/number tokens, and Chinese unigram/bigram tokenization
 - Stable score ties ordered by memory ID, `top_k` from 1 to 50, result evidence, and timing
-- pytest coverage for import, storage, tokenization, ranking, cache reuse/invalidation, and search API behavior
+- Local CPU embeddings with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, pinned to Hugging Face revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- float32 embedding BLOBs in SQLite with model/configuration metadata and compatible schema migration
+- Exact cosine similarity, stable ties, transactional vector builds, corruption detection, and persisted reuse
+- pytest coverage using an injectable fake provider; the test suite never downloads the real model
 
-Dense, Hybrid, RRF, method comparison, charts, and evaluation execution are intentionally not implemented yet.
+Hybrid, RRF, simultaneous method comparison, charts, and evaluation execution are intentionally not implemented yet.
 
 ## Requirements
 
@@ -23,7 +26,7 @@ Dense, Hybrid, RRF, method comparison, charts, and evaluation execution are inte
 - npm 10+
 - Python 3.11+
 
-No paid API, API key, model download, or external database is required for M3.
+No paid API, API key, or external database is required. Installing the backend includes the local Sentence Transformer runtime. The first Dense query downloads the fixed public model unless it is already cached.
 
 ## Start the backend on Windows PowerShell
 
@@ -76,9 +79,9 @@ Invoke-RestMethod `
 
 Import is all-or-nothing: invalid data is rejected and the transaction is rolled back.
 
-## Search the example with BM25
+## Search the example
 
-In the frontend, choose **Search BM25** on a dataset and submit a query. The Search page shows the raw score, stable rank, memory evidence, and measured local latency.
+In the frontend, choose **Search** on a dataset, then select BM25 or Dense. BM25 shows raw lexical scores. Dense shows cosine similarity, fixed model details, initialization/vector-build status, and per-stage local latency. The two score types are never presented on a shared axis.
 
 PowerShell API example, replacing `<dataset-id>` with the imported dataset ID:
 
@@ -97,6 +100,26 @@ Invoke-RestMethod `
 ```
 
 BM25 indexes are built from SQLite memories on first search and reused in the backend process. Successful dataset import clears cached indexes; successful deletion invalidates that dataset's index.
+
+Dense API example:
+
+```powershell
+$denseBody = @{
+  query = "What interface theme does the user prefer?"
+  methods = @("dense")
+  top_k = 10
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
+  -Method Post `
+  -ContentType application/json `
+  -Body $denseBody
+```
+
+On the first Dense request, MemoryScope loads or downloads the model, creates missing memory embeddings in a single SQLite transaction, and performs exact cosine search. Later requests reuse matching BLOBs. Restarting the backend reloads the model into memory but still reuses SQLite embeddings.
+
+The model name alone is not used as an embedding identity. MemoryScope passes the exact revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` to Sentence Transformer and persists it with every embedding. A missing or different revision forces a transactional dataset rebuild.
 
 ## Verification
 
@@ -118,9 +141,15 @@ See `.env.example`. Defaults are usable without copying the file when commands a
 
 - `MEMORYSCOPE_DATABASE_PATH` selects the local SQLite file; default: `backend/data/memoryscope.db` when the backend is started from `backend`.
 - `MEMORYSCOPE_CORS_ORIGINS` controls allowed frontend origins.
+- `MEMORYSCOPE_MODEL_CACHE_PATH` selects the model cache; default: `backend/.model-cache`.
+- `MEMORYSCOPE_MODEL_OFFLINE=true` prevents downloads and requires a complete cached model.
 - `VITE_API_BASE_URL` tells the frontend where the backend is running.
 
-SQLite databases, environment overrides, dependencies, build outputs, Python caches, and future downloaded model files are excluded from Git.
+The fixed model cache is approximately 500 MB (exact size varies by package/model revision). Python ML dependencies consume additional virtual-environment disk space. With a complete cache, Dense works offline; without it, offline Dense returns a clear model initialization error while BM25 remains available.
+
+On Windows without Developer Mode, Hugging Face may warn that cache symlinks are unavailable. MemoryScope still works and stores ordinary files in the configured cache, but downloading can temporarily use more disk space.
+
+SQLite databases, environment overrides, dependencies, build outputs, Python caches, and downloaded model files are excluded from Git.
 
 ## Documentation
 

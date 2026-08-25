@@ -42,8 +42,8 @@ export function DatasetList(props: Props) {
               <div className="dataset-actions">
                 <button
                   className="search-button" type="button"
-                  onClick={() => onSearch(dataset.id)} aria-label={`Search ${dataset.name} with BM25`}
-                >Search BM25</button>
+                  onClick={() => onSearch(dataset.id)} aria-label={`Search ${dataset.name}`}
+                >Search</button>
                 <button
                   className="delete-button" type="button" disabled={deletingId === dataset.id}
                   onClick={() => onDelete(dataset)} aria-label={`Delete ${dataset.name}`}

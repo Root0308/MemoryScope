@@ -23,7 +23,7 @@ class SearchRequest(StrictSchema):
         return value
 
 
-class SearchTiming(BaseModel):
+class BM25SearchTiming(BaseModel):
     total_ms: float
     index_ms: float
     search_ms: float
@@ -42,10 +42,50 @@ class BM25SearchResult(BaseModel):
     bm25_rank: int
 
 
-class SearchResponse(BaseModel):
+class BM25SearchResponse(BaseModel):
     query: str
     method: Literal["bm25"]
     top_k: int
     total_memories: int
-    timing: SearchTiming
+    timing: BM25SearchTiming
     results: list[BM25SearchResult]
+
+
+class DenseSearchTiming(BaseModel):
+    total_ms: float
+    model_load_ms: float
+    memory_embedding_ms: float
+    query_embedding_ms: float
+    search_ms: float
+
+
+class DenseModelInfo(BaseModel):
+    name: str
+    model_revision: str
+    dimension: int
+    normalized: bool
+    embedding_version: str
+    initialized_this_request: bool
+    memory_embeddings_built: bool
+
+
+class DenseSearchResult(BaseModel):
+    final_rank: int
+    memory_id: str
+    conversation_id: str
+    role: Literal["user", "assistant", "system", "tool"]
+    content: str
+    timestamp: str | None
+    metadata: dict[str, JsonValue] | None
+    dense_cosine: float
+    dense_rank: int
+
+
+class DenseSearchResponse(BaseModel):
+    query: str
+    method: Literal["dense"]
+    top_k: int
+    total_memories: int
+    model: DenseModelInfo
+    timing: DenseSearchTiming
+    results: list[DenseSearchResult]

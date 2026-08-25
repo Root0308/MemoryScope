@@ -30,6 +30,18 @@ CREATE TABLE IF NOT EXISTS memories (
 CREATE INDEX IF NOT EXISTS idx_memories_dataset_position
     ON memories(dataset_id, position);
 
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+    memory_id INTEGER PRIMARY KEY,
+    model_name TEXT NOT NULL,
+    model_revision TEXT NOT NULL,
+    dimension INTEGER NOT NULL CHECK (dimension > 0),
+    normalized INTEGER NOT NULL CHECK (normalized IN (0, 1)),
+    embedding_version TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS evaluation_cases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dataset_id TEXT NOT NULL,
@@ -52,7 +64,7 @@ CREATE TABLE IF NOT EXISTS evaluation_relevances (
         ON DELETE CASCADE
 );
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 4;
 """
 
 
@@ -68,3 +80,14 @@ def connect_database(database_path: Path) -> sqlite3.Connection:
 def initialize_database(database_path: Path) -> None:
     with connect_database(database_path) as connection:
         connection.executescript(SCHEMA_SQL)
+        embedding_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(memory_embeddings)"
+            ).fetchall()
+        }
+        if "model_revision" not in embedding_columns:
+            connection.execute(
+                "ALTER TABLE memory_embeddings ADD COLUMN model_revision TEXT"
+            )
+        connection.execute("PRAGMA user_version = 4")

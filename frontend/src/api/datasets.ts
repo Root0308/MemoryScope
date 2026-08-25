@@ -1,8 +1,11 @@
 import type {
   BM25SearchResponse,
+  DenseSearchResponse,
   DatasetListResponse,
   DatasetSummary,
   MemoryPage,
+  SearchMethod,
+  SearchResponse,
 } from "../types/datasets";
 import { apiBaseUrl, apiError } from "./client";
 
@@ -72,4 +75,21 @@ export async function searchDatasetBM25(
   });
   if (!response.ok) throw await apiError(response);
   return (await response.json()) as BM25SearchResponse;
+}
+
+export async function searchDataset(
+  datasetId: string,
+  query: string,
+  method: SearchMethod,
+  topK: number,
+  signal?: AbortSignal,
+): Promise<SearchResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/datasets/${datasetId}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, methods: [method], top_k: topK }),
+    signal,
+  });
+  if (!response.ok) throw await apiError(response);
+  return (await response.json()) as BM25SearchResponse | DenseSearchResponse;
 }
