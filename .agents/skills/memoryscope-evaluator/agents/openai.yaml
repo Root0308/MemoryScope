@@ -1,0 +1,7 @@
+interface:
+  display_name: "MemoryScope Evaluator"
+  short_description: "Run local memory retrieval evaluations and generate reports"
+  default_prompt: "Use $memoryscope-evaluator to evaluate a local MemoryScope dataset and write a cautious Markdown report."
+
+policy:
+  allow_implicit_invocation: true

@@ -199,6 +199,18 @@ Hybrid uses `min(N, max(100, 5 * top_k))` candidates per BM25 and Dense branch. 
 
 BM25 raw scores and Dense cosine similarities use different scales. MemoryScope never directly adds, jointly normalizes, or presents them as comparable measurements; Hybrid combines only their ranks.
 
+## Codex Skill
+
+The repository includes the reusable `memoryscope-evaluator` Codex Skill at `.agents/skills/memoryscope-evaluator`. It wraps the existing local Health, Import, and Evaluation APIs to evaluate BM25, Dense, and Hybrid and produce a cautious Markdown report; it is not a separate retrieval implementation.
+
+Explicit invocation example:
+
+```text
+$memoryscope-evaluator evaluate examples/sample-dataset.json at k=10 and write the Markdown report to ./evaluation-report.md
+```
+
+The Skill accepts either a strict MemoryScope JSON path or an existing dataset ID, a `k` value, an optional local backend URL, and a Markdown output path. Conversation data stays on the local machine and is not sent to an external service. Before a first Dense evaluation, the Skill explains that the pinned public model may require a one-time download of about 480 MiB and asks for confirmation.
+
 ## Run verification
 
 Backend tests:
