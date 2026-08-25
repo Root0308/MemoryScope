@@ -8,9 +8,15 @@
 **/*.py[cod]
 .venv/
 .pytest_cache/
+**/.pytest-tmp/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
 backend/.coverage
 backend/htmlcov/
 backend/*.egg-info/
+*.egg-info/
 
 # Local SQLite data
 backend/data/*
@@ -45,7 +51,12 @@ frontend/.vite/
 .idea/
 .vscode/
 .DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes/
 Thumbs.db
+Desktop.ini
 
 # Logs
 *.log

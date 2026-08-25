@@ -1,79 +1,174 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M7 supports single BM25, local multilingual Dense, explainable Hybrid RRF, one-query three-method comparison, and labelled Recall@k/MRR@k evaluation over imported message-level memories.
+MemoryScope v0.1.0 is a local-first, single-user tool for understanding how an agent retrieves conversation memories. Import a strict JSON dataset, search one-message memories with BM25, local Dense, or explainable Hybrid RRF, compare rankings and latency, and evaluate retrieval against human-provided relevance labels.
 
-Implemented through M7:
+MemoryScope started as an independent project in an empty repository. It does not copy source code, structure, data, charts, or prose from the earlier group project.
 
-- React, TypeScript, and Vite frontend
-- FastAPI backend and health endpoint
-- Strict MemoryScope schema 0.1 validation
-- SQLite tables for datasets, memories, evaluation cases, and relevance labels
-- Atomic import, dataset list/detail, paginated memories, and cascading deletion
-- `rank-bm25` retrieval with per-dataset process-local index caching
-- Unicode NFKC, lowercased word/number tokens, and Chinese unigram/bigram tokenization
-- Stable score ties ordered by memory ID, `top_k` from 1 to 50, result evidence, and timing
-- Local CPU embeddings with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, pinned to Hugging Face revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
-- float32 embedding BLOBs in SQLite with model/configuration metadata and compatible schema migration
-- Exact cosine similarity, stable ties, transactional vector builds, corruption detection, and persisted reuse
-- Hybrid retrieval over the BM25/Dense candidate union with deterministic Reciprocal Rank Fusion (`rrf_k = 60`)
-- Per-result branch ranks, raw diagnostic scores, RRF contributions, candidate-pool size, and stage timings
-- Compare API that executes BM25 and Dense once, reuses their candidate ranks for Hybrid, and encodes the Dense query once
-- Responsive three-column results, accessible rank matrix, and Recharts timing visualization with shared preparation shown separately
-- Evaluation API over imported `evaluation_cases`, with macro Recall@k, macro MRR@k, average latency, and standard-median P50 latency
-- Three-method evaluation cards, quality/latency charts, and per-case evidence with no-hit and no-label states
-- pytest coverage using an injectable fake provider; the test suite never downloads the real model
+## What is included
+
+- Strict schema 0.1 JSON validation and all-or-nothing import
+- Local SQLite persistence, paginated memory preview, and cascading deletion
+- Deterministic multilingual BM25 with `rank-bm25`
+- Local CPU Dense retrieval with a revision-pinned multilingual Sentence Transformer
+- Exact cosine similarity over persisted float32 embeddings
+- Explainable Hybrid ranking with Reciprocal Rank Fusion (`rrf_k = 60`)
+- One-query BM25, Dense, and Hybrid rank comparison with stage timings
+- Label-based macro Recall@k, MRR@k, average latency, and P50 latency
+- Responsive React interface with explicit loading, empty, and error states
+- FastAPI tests that use an injected fake embedding provider and never download the model
+
+## Interface
+
+All screenshots use the fictional dataset in `examples/sample-dataset.json`.
+
+### Search
+
+![MemoryScope Hybrid search with score explanation](docs/assets/search.png)
+
+### Compare methods
+
+![MemoryScope three-method rank comparison](docs/assets/compare.png)
+
+### Evaluation
+
+![MemoryScope Recall and MRR evaluation](docs/assets/evaluation.png)
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 19, TypeScript 5.9, Vite 8, Recharts 3 |
+| API | Python 3.11+, FastAPI, Uvicorn |
+| Storage | SQLite with float32 embedding BLOBs |
+| Retrieval | `rank-bm25`, Sentence Transformers, NumPy exact cosine, RRF |
+| Verification | pytest, TypeScript compiler, Vite production build |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    UI[React + TypeScript UI] -->|JSON / HTTP| API[FastAPI]
+    API --> DB[(Local SQLite)]
+    API --> BM25[BM25 index cache]
+    API --> Dense[Local Sentence Transformer]
+    Dense --> Cache[Local model cache]
+    BM25 --> RRF[Rank-only RRF]
+    Dense --> RRF
+    API --> Eval[Recall@k / MRR@k]
+```
+
+Conversation content, evaluation labels, and embeddings stay in the local SQLite database. The only expected runtime network access is the first download of the public Dense model when it is not already cached.
 
 ## Requirements
 
 - Git
-- Node.js 20.19+ in the 20.x line, or Node.js 22.12+
-- npm 10+
-- Python 3.11+
+- Python 3.11 or newer
+- Node.js 22.12 or newer
+- pnpm 11.19.0
 
-No paid API, API key, or external database is required. Installing the backend includes the local Sentence Transformer runtime. The first Dense or Hybrid query downloads the fixed public model unless it is already cached.
+Install the pinned package manager if needed:
 
-## Start the backend on Windows PowerShell
+```text
+npm install --global pnpm@11.19.0
+```
+
+No paid API, API key, external database, or vector service is required.
+
+## Quick start on Windows PowerShell
 
 From the repository root:
 
 ```powershell
-Set-Location ./backend
-python -m venv .venv
-./.venv/Scripts/Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\scripts\setup.ps1
 ```
 
-If PowerShell blocks virtual-environment activation, enable scripts for the current terminal only:
+If local script execution is disabled, enable it only for the current PowerShell process:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
-Backend addresses:
-
-- Health: <http://127.0.0.1:8000/api/v1/health>
-- OpenAPI: <http://127.0.0.1:8000/docs>
-
-## Start the frontend on Windows PowerShell
-
-Open a second PowerShell terminal at the repository root:
+Start the backend in the first terminal:
 
 ```powershell
-Set-Location ./frontend
-npm install
-npm run dev -- --host 127.0.0.1
+.\scripts\start-backend.ps1
 ```
 
-Open <http://127.0.0.1:5173>. Keep the backend terminal running.
-
-## Import the example
-
-Use the page's file picker or drag-and-drop area and select `examples/sample-dataset.json`. The same operation can be checked from PowerShell:
+Start the frontend in a second terminal:
 
 ```powershell
-$sampleJson = Get-Content -Raw ./examples/sample-dataset.json
+.\scripts\start-frontend.ps1
+```
+
+Open <http://127.0.0.1:5173>. The health endpoint is <http://127.0.0.1:8000/api/v1/health>, and interactive OpenAPI documentation is at <http://127.0.0.1:8000/docs>.
+
+## Quick start on macOS or Linux
+
+From the repository root:
+
+```bash
+npm install --global pnpm@11.19.0
+bash ./scripts/setup.sh
+```
+
+Start the backend in the first terminal:
+
+```bash
+bash ./scripts/start-backend.sh
+```
+
+Start the frontend in a second terminal:
+
+```bash
+bash ./scripts/start-frontend.sh
+```
+
+Then open <http://127.0.0.1:5173>.
+
+## Manual startup
+
+The scripts above are deliberately small and run each service in the foreground. The equivalent manual commands are:
+
+### Backend
+
+Windows PowerShell:
+
+```powershell
+Set-Location .\backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+macOS/Linux:
+
+```bash
+cd backend
+python3 -m venv .venv
+./.venv/bin/python -m pip install -e ".[dev]"
+./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+### Frontend
+
+```text
+cd frontend
+pnpm install --frozen-lockfile
+pnpm run dev -- --host 127.0.0.1
+```
+
+## Import and explore the example
+
+1. Open the frontend and choose `examples/sample-dataset.json` in the file picker, or drop it onto the import area.
+2. Open the imported dataset to preview message-level memories.
+3. Choose **Search**, then run BM25, Dense, or Hybrid for `用户喜欢什么界面主题？`.
+4. Switch to **Compare Methods** to align the three top-k rankings.
+5. Open **Evaluation** and run the two included evaluation cases.
+
+PowerShell import example:
+
+```powershell
+$sampleJson = Get-Content -Raw .\examples\sample-dataset.json
 Invoke-RestMethod `
   -Uri http://127.0.0.1:8000/api/v1/datasets/import `
   -Method Post `
@@ -81,162 +176,77 @@ Invoke-RestMethod `
   -Body $sampleJson
 ```
 
-Import is all-or-nothing: invalid data is rejected and the transaction is rolled back.
+Import is atomic: any invalid message, role, ID, relevance reference, limit, or JSON structure rolls back the entire dataset.
 
-## Search the example
+## Data and evaluation format
 
-In the frontend, choose **Search** on a dataset. **Single Search** preserves the BM25, Dense, and Hybrid workflows. **Compare Methods** accepts one query and `top_k`, then shows three result columns, a memory-aligned rank matrix, and method-specific timing bars. BM25 raw and Dense cosine values remain visible only in their own result columns; the comparison is based on ranks, not a shared score scale.
+Each JSON document has `schema_version`, `name`, and `conversations`. Each message requires `id`, `role`, and non-empty `content`; `timestamp` and `metadata` are optional. One message is one retrievable memory—MemoryScope never chunks it automatically.
 
-PowerShell API example, replacing `<dataset-id>` with the imported dataset ID:
+Optional `evaluation_cases` contain a query and one or more `relevant_memory_ids` that must reference messages in the same dataset. For each case:
 
-```powershell
-$searchBody = @{
-  query = "用户喜欢什么界面主题？"
-  methods = @("bm25")
-  top_k = 10
-} | ConvertTo-Json
+- `Recall@k = retrieved relevant count / relevant message count`.
+- `RR@k = 1 / r` when the first relevant memory occurs at one-based rank `r <= k`; otherwise it is `0`.
+- Dataset Recall@k and MRR@k are macro averages, so each case has equal weight.
+- P50 is the standard median; for an even case count it averages the two middle latency values.
 
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
-  -Method Post `
-  -ContentType application/json `
-  -Body $searchBody
-```
+Preparation such as model initialization and vector construction is reported separately. BM25 latency is lexical scoring/ranking, Dense latency is query encoding plus exact cosine ranking, and Hybrid latency is RRF fusion over already computed ranks.
 
-BM25 indexes are built from SQLite memories on first search and reused in the backend process. Successful dataset import clears cached indexes; successful deletion invalidates that dataset's index.
+See [data format](docs/data-format.md), [API reference](docs/api.md), and [product specification](docs/product-spec.md) for full contracts and limits.
 
-Dense API example:
+## Retrieval score semantics
 
-```powershell
-$denseBody = @{
-  query = "What interface theme does the user prefer?"
-  methods = @("dense")
-  top_k = 10
-} | ConvertTo-Json
+Hybrid uses `min(N, max(100, 5 * top_k))` candidates per BM25 and Dense branch. A candidate contributes `1 / (60 + rank)` from each branch it entered, and zero otherwise. Stable ties use ascending `memory_id`.
 
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
-  -Method Post `
-  -ContentType application/json `
-  -Body $denseBody
-```
+BM25 raw scores and Dense cosine similarities use different scales. MemoryScope never directly adds, jointly normalizes, or presents them as comparable measurements; Hybrid combines only their ranks.
 
-On the first Dense request, MemoryScope loads or downloads the model, creates missing memory embeddings in a single SQLite transaction, and performs exact cosine search. Later requests reuse matching BLOBs. Restarting the backend reloads the model into memory but still reuses SQLite embeddings.
+## Run verification
 
-The model name alone is not used as an embedding identity. MemoryScope passes the exact revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` to Sentence Transformer and persists it with every embedding. A missing or different revision forces a transactional dataset rebuild.
-
-Hybrid API example:
+Backend tests:
 
 ```powershell
-$hybridBody = @{
-  query = "用户喜欢什么界面主题？"
-  methods = @("hybrid")
-  top_k = 10
-} | ConvertTo-Json
-
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
-  -Method Post `
-  -ContentType application/json `
-  -Body $hybridBody
+Set-Location .\backend
+.\.venv\Scripts\python.exe -m pytest --basetemp .pytest-tmp
 ```
 
-For each branch, Hybrid retrieves `min(dataset_memory_count, max(100, 5 * top_k))` candidates. It takes the candidate union and computes `1 / (60 + rank)` for each available branch; a missing branch contributes zero. The final score is the sum of those rank contributions, with `memory_id` as the stable tie-break. BM25 raw scores and Dense cosine similarities have different scales: they are never directly added or normalized together.
-
-Compare API example:
+Frontend type check and production build:
 
 ```powershell
-$compareBody = @{
-  query = "用户喜欢什么界面主题？"
-  top_k = 10
-} | ConvertTo-Json
-
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search/compare `
-  -Method Post `
-  -ContentType application/json `
-  -Body $compareBody
+Set-Location .\frontend
+pnpm run typecheck
+pnpm run build
 ```
 
-A Compare request calculates the BM25 and Dense candidate rankings once and reuses them for Hybrid. The Dense query vector is encoded once. `comparison_rows` aligns the top-k result union by `memory_id`; a method rank is `null` when that memory is outside that method's top-k.
+The same commands run in `.github/workflows/ci.yml` on pull requests and pushes to `main`. CI forces model libraries into offline mode; tests inject a fake embedding provider and do not download model weights.
 
-Compare timing fields deliberately separate shared and method-specific work:
+## Configuration, privacy, and offline behavior
 
-- `preparation_ms`: BM25 index access/build plus Dense dataset loading, model initialization, and memory-vector inspection/build.
-- `bm25_ms`: BM25 query scoring and stable ranking only.
-- `dense_ms`: one query embedding plus exact cosine scoring and stable ranking.
-- `hybrid_fusion_ms`: RRF fusion of the already-computed candidate ranks.
-- `total_ms`: full request wall-clock time, including response alignment/assembly.
+Defaults work without a `.env` file. Copy `.env.example` to `.env` only when overriding the local database path, allowed frontend origins, model cache path, offline mode, or frontend API address. `.env` is ignored by Git.
 
-The timing chart contains only `bm25_ms`, `dense_ms`, and `hybrid_fusion_ms`; shared preparation is displayed separately and is not repeated across methods. Compare remains exploratory rank inspection. The Evaluation mode described below uses imported human relevance labels.
+Imported conversations are processed locally and are not uploaded by MemoryScope. Dense retrieval is also local after model installation, but first use can contact Hugging Face to download the public model:
 
-## Evaluate the example
+- Model: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- Revision: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- Default cache: `backend/.model-cache`
+- Approximate cache size: 480 MiB; filesystem and dependency versions can change the exact size
 
-Open the dataset workspace and choose **Evaluation**. The sample contains two deliberately small, human-readable cases. Choose `k` from 1 to 50 and run all three methods locally.
+Set `MEMORYSCOPE_MODEL_OFFLINE=true` only after the complete pinned revision is cached. Without a complete cache, offline Dense, Hybrid, Compare, and Evaluation requests return a model initialization error; BM25 remains available. On Windows without Developer Mode, Hugging Face may use ordinary files instead of symlinks and temporarily consume more disk space.
 
-PowerShell API example:
+## Known limitations
 
-```powershell
-$evaluationBody = @{
-  k = 3
-} | ConvertTo-Json
+- Local, single-user development tool; there is no authentication or hosted service.
+- A dataset is limited to 5,000 messages, 200 evaluation cases, a 20 MiB JSON file, and 20,000 characters per message.
+- SQLite has limited write concurrency and is not intended for multi-process ingestion.
+- Dense CPU cold start is comparatively slow and the pinned model cache is about 480 MiB.
+- Cosine retrieval scans every memory exactly; there is no ANN, FAISS, HNSW, or vector database.
+- Chinese BM25 tokenization uses simplified character unigrams and adjacent bigrams rather than linguistic segmentation.
+- BM25 raw scores and Dense cosine scores cannot be directly compared.
+- Recall and MRR depend on manually supplied `relevant_memory_ids`; small local datasets do not establish general retrieval quality or statistical significance.
+- Evaluation history, automatic labeling, reranking, live agent integration, and multi-dataset benchmarking are not implemented.
 
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/evaluate `
-  -Method Post `
-  -ContentType application/json `
-  -Body $evaluationBody
-```
+## Roadmap
 
-For one case with relevant set `R` and returned top-k IDs `T`, MemoryScope calculates:
-
-- `Recall@k = |R ∩ T| / |R|`.
-- `RR@k = 1 / r` when the first relevant result is at one-based rank `r <= k`; otherwise `0`.
-- Dataset Recall@k and MRR@k are macro averages: each case contributes equal weight.
-- `average_latency_ms` is the arithmetic mean of the per-case method stage.
-- `p50_latency_ms` is the standard median; for an even sample count it averages the two middle values.
-
-Each eval query computes BM25 and Dense rankings once and reuses them for Hybrid. Dense encodes one query vector per case. Method latency semantics match Compare: BM25 is lexical scoring/ranking, Dense is query encoding plus cosine ranking, and Hybrid is RRF fusion only. Model initialization, vector inspection/build, and other shared preparation appear once in `preparation_ms` rather than being attributed to every method.
-
-Metrics depend entirely on manually supplied `relevant_memory_ids`. They are not automatic truth labels, a statistical significance test, or evidence that a method generalizes beyond the imported local dataset. Evaluation runs are not stored as history.
-
-## Verification
-
-```powershell
-Set-Location ./backend
-./.venv/Scripts/Activate.ps1
-python -m pytest
-```
-
-```powershell
-Set-Location ./frontend
-npm run typecheck
-npm run build
-```
-
-## Configuration and local data
-
-See `.env.example`. Defaults are usable without copying the file when commands are run from `backend` and `frontend` as shown above.
-
-- `MEMORYSCOPE_DATABASE_PATH` selects the local SQLite file; default: `backend/data/memoryscope.db` when the backend is started from `backend`.
-- `MEMORYSCOPE_CORS_ORIGINS` controls allowed frontend origins.
-- `MEMORYSCOPE_MODEL_CACHE_PATH` selects the model cache; default: `backend/.model-cache`.
-- `MEMORYSCOPE_MODEL_OFFLINE=true` prevents downloads and requires a complete cached model.
-- `VITE_API_BASE_URL` tells the frontend where the backend is running.
-
-The fixed model cache is approximately 500 MB (exact size varies by package/model revision). Python ML dependencies consume additional virtual-environment disk space. With a complete cache, Dense and Hybrid work offline; without it, offline Dense/Hybrid return a clear model initialization error while BM25 remains available.
-
-On Windows without Developer Mode, Hugging Face may warn that cache symlinks are unavailable. MemoryScope still works and stores ordinary files in the configured cache, but downloading can temporarily use more disk space.
-
-SQLite databases, environment overrides, dependencies, build outputs, Python caches, and downloaded model files are excluded from Git.
-
-## Documentation
-
-- [Product specification](docs/product-spec.md)
-- [Data format](docs/data-format.md)
-- [API](docs/api.md)
-- [Example dataset](examples/sample-dataset.json)
+Possible post-v0.1.0 work includes saved evaluation runs, additional explicitly labelled metrics, exportable reports, and larger-dataset indexing. These are not part of the current release.
 
 ## License
 
-MemoryScope is licensed under the [MIT License](LICENSE).
+MemoryScope is released under the [MIT License](LICENSE).

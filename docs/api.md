@@ -1,4 +1,4 @@
-# MemoryScope API
+# MemoryScope API v0.1.0
 
 Local base URL: `http://127.0.0.1:8000/api/v1`
 
@@ -80,7 +80,7 @@ Deletes the dataset and all related memories, embeddings, evaluation cases, and 
 
 ### `POST /datasets/{id}/search`
 
-M5 accepts exactly one method per request: BM25, Dense, or Hybrid. A request such as `methods: ["bm25", "dense"]` is a later comparison workflow and returns `422` with `code: invalid_methods`.
+The single-search endpoint accepts exactly one method per request: BM25, Dense, or Hybrid. A request such as `methods: ["bm25", "dense"]` must use the dedicated Compare endpoint instead and returns `422` with `code: invalid_methods` here.
 
 BM25 request:
 
@@ -255,7 +255,7 @@ Each branch receives `min(total_memories, max(100, 5 * top_k))` candidates. Memo
 
 If a result is absent from one branch candidate pool, that branch's rank and raw score are `null` and its RRF contribution is `0`. BM25 raw scores and cosine similarities are not directly comparable and are never added or normalized together. Equal branch scores and equal `rrf_total` values are resolved by ascending `memory_id`.
 
-The Hybrid `model` object is the Dense embedding identity/signature and lifecycle state. Its name, exact revision, dimension, normalized flag, and embedding version must all match persisted vectors; otherwise the M4 transactional rebuild behavior applies. The nested timing object separates BM25, Dense, and RRF fusion work.
+The Hybrid `model` object is the Dense embedding identity/signature and lifecycle state. Its name, exact revision, dimension, normalized flag, and embedding version must all match persisted vectors; otherwise the transactional rebuild behavior applies. The nested timing object separates BM25, Dense, and RRF fusion work.
 
 ### `POST /datasets/{id}/search/compare`
 

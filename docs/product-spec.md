@@ -1,10 +1,10 @@
-# MemoryScope v0.1 Product Specification
+# MemoryScope v0.1.0 Product Specification
 
 ## Product statement
 
 MemoryScope is a local-first, single-user tool for inspecting and evaluating retrieval over agent conversation memory.
 
-The v0.1 workflow is to import a strict conversation dataset, retrieve message-level memories with BM25, Dense, or Hybrid search, inspect ranking evidence and latency, compare methods, and run annotated Hit Rate, Recall, and MRR evaluation.
+The v0.1.0 workflow is to import a strict conversation dataset, retrieve message-level memories with BM25, Dense, or Hybrid search, inspect ranking evidence and latency, compare methods, and run annotated Recall and MRR evaluation.
 
 ## Confirmed decisions
 
@@ -16,12 +16,12 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - Hybrid retrieval will use Reciprocal Rank Fusion with constant 60.
 - Data remains in local SQLite and conversation content is not uploaded.
 - No paid API or API key is required.
-- Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
+- Evaluation cases, Recall@k, and MRR@k are part of v0.1.0.
 - The project uses the MIT License.
 
-## Implemented through M7
+## Implemented in v0.1.0
 
-M2 implements:
+Import and persistence include:
 
 - strict schema 0.1 parsing and validation;
 - limits of 20 MB, 5,000 messages, 200 evaluation cases, and 20,000 characters per message;
@@ -30,7 +30,7 @@ M2 implements:
 - frontend file selection/drag-and-drop, validation feedback, statistics, pagination, deletion confirmation, and UI states;
 - automated coverage of valid and invalid import, rollback, pagination, and cascade behavior.
 
-M3 implements:
+BM25 retrieval includes:
 
 - deterministic NFKC normalization;
 - lowercase letter tokens and numeric tokens;
@@ -41,7 +41,7 @@ M3 implements:
 - stable `memory_id` tie-breaking and `top_k` from 1 to 50;
 - one BM25 search API and a dedicated Search page with raw scores, evidence, and latency.
 
-M4 implements:
+Dense retrieval includes:
 
 - an injectable embedding provider with fake-provider automated tests and a lazy CPU Sentence Transformer implementation;
 - fixed model name and exact revision, 384-dimensional normalized float32 vectors, and embedding version metadata;
@@ -51,7 +51,7 @@ M4 implements:
 - Dense response evidence, model/build flags, and model-load, embedding, and search timings;
 - a BM25/Dense single-method Search UI with explicit first-download and failure states.
 
-M5 implements:
+Hybrid retrieval includes:
 
 - one Hybrid request that runs the existing BM25 and Dense branches over `min(N, max(100, 5 * top_k))` candidates each;
 - candidate-union Reciprocal Rank Fusion with rank origins at 1 and fixed `rrf_k = 60`;
@@ -60,7 +60,7 @@ M5 implements:
 - Dense model signature/build status plus BM25, Dense, fusion, and total timing evidence;
 - an enabled Hybrid Search UI with local-model loading states and a per-result scoring explanation.
 
-M6 implements:
+Method comparison includes:
 
 - a dedicated Compare API that runs BM25 and Dense once per request and reuses the same candidate rankings for Hybrid;
 - one Dense query encoding per comparison and model/vector preparation shared rather than attributed three times;
@@ -70,7 +70,7 @@ M6 implements:
 - a Single Search / Compare Methods switch, three responsive result columns, a readable rank matrix, and a method-specific Recharts timing chart;
 - rank comparison without directly comparing, adding, or jointly normalizing BM25 raw and Dense cosine values.
 
-M7 implements:
+Labelled evaluation includes:
 
 - read-only evaluation over all imported cases in stable import order;
 - one BM25 and Dense ranking per eval query, one Dense query encoding, and reuse of those rankings for Hybrid RRF;
@@ -81,15 +81,15 @@ M7 implements:
 - an Evaluation workspace with three summary cards, quality and latency charts, and responsive per-case details;
 - explicit empty-label, no-hit, loading, model preparation, and error states.
 
-## Explicitly outside M7
+## Explicitly outside v0.1.0
 
 - Evaluation history persistence or run comparison over time
 - Automatic or LLM-generated relevance labels
 - Statistical significance analysis or claims of general retrieval quality
 - Online services, authentication, and multiple users
-- Hit Rate reporting and release/publishing work
+- Hit Rate reporting and release automation
 
-## v0.1 non-goals
+## v0.1.0 non-goals
 
 - Authentication or multiple users
 - Cloud synchronization or conversation upload

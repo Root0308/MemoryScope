@@ -1,6 +1,6 @@
 # MemoryScope Dataset Format 0.1
 
-M2 enforces one strict JSON object. Unknown fields and type coercion are rejected. The request body itself is JSON, not multipart form data.
+MemoryScope enforces one strict JSON object. Unknown fields and type coercion are rejected. The request body itself is JSON, not multipart form data.
 
 ## Root object
 
@@ -51,11 +51,11 @@ Every message is stored as exactly one memory in source order. BM25 treats `cont
 
 See [`examples/sample-dataset.json`](../examples/sample-dataset.json) for a complete accepted file.
 
-## M3 BM25 text treatment
+## BM25 text treatment
 
 Search does not change the imported JSON or stored content. For BM25 only, text is normalized with Unicode NFKC and lowercased; consecutive letters and numbers become tokens, while each contiguous Chinese run contributes character unigrams and adjacent character bigrams. Whitespace and punctuation are boundaries and do not become tokens.
 
-## M4 local embedding storage
+## Local embedding storage
 
 Embeddings are derived local data and are not fields in the import JSON. MemoryScope stores each vector as a float32 BLOB in `memory_embeddings`, keyed to the SQLite memory row. Each BLOB is accompanied by the fixed model name, exact Hugging Face revision, dimension, normalized flag, and embedding version.
 
@@ -69,7 +69,7 @@ The current configuration is:
 
 Matching, valid BLOBs are reused. Missing vectors are generated in a batch. A missing/different revision, any other model/configuration mismatch, corrupt BLOB, wrong dimension, non-finite value, or zero vector triggers a transactional rebuild rather than mixing incompatible vectors. Databases created before revision pinning are migrated in place; their revision-less embeddings are rebuilt on the next Dense query. Deleting a dataset cascades to its embeddings.
 
-## M5 Hybrid derived ranking data
+## Hybrid derived ranking data
 
 Hybrid search does not add fields to the import JSON or create another stored score. At request time, MemoryScope runs the existing BM25 and Dense branches against the same message-level memories. Each branch returns `min(N, max(100, 5 * top_k))` candidates, where `N` is the dataset memory count.
 
@@ -81,15 +81,15 @@ The candidate union is fused with `rrf_k = 60` and one-based ranks:
 
 BM25 raw scores and Dense cosine similarities are retained only as request-time explanation fields. Their scales differ, so MemoryScope never directly adds or jointly normalizes them. RRF uses branch ranks only. Hybrid results are deterministic: branch ties and final RRF ties use ascending `memory_id`.
 
-## M6 comparison data
+## Comparison data
 
 Compare mode adds no fields to the imported JSON and persists no comparison run. A Compare response is derived from one immutable imported dataset, one query, and one `top_k`. It returns the three top-k lists plus `comparison_rows`, which is the deduplicated union of those lists keyed by `memory_id`.
 
 Each row contains `bm25_rank`, `dense_rank`, and `hybrid_rank`. A rank is `null` when that memory is not present in the corresponding method's top-k, even if it appeared in a deeper candidate pool. The content is copied from the same message-level memory snapshot. Compare does not read `evaluation_cases`; it remains exploratory rather than labelled evaluation.
 
-## M7 labelled evaluation data
+## Labelled evaluation data
 
-M7 reads `evaluation_cases` in import order and each case's `relevant_memory_ids` in source-memory order. These are human-provided relevance labels. Evaluation does not edit messages, cases, or relevance rows, and it does not persist an evaluation run or metric history. Dense may still create or reuse its existing derived embedding cache under the M4 rules.
+MemoryScope reads `evaluation_cases` in import order and each case's `relevant_memory_ids` in source-memory order. These are human-provided relevance labels. Evaluation does not edit messages, cases, or relevance rows, and it does not persist an evaluation run or metric history. Dense may still create or reuse its existing derived embedding cache under the embedding rules above.
 
 The Evaluation API calls the returned labels `relevant_message_ids` to make clear that imported message IDs are the unit of relevance. `retrieved_message_ids` is the ordered top-k list for one method; `retrieved_relevant_message_ids` is its ordered intersection with the relevant labels. An empty intersection produces Recall `0`, reciprocal rank `0`, and `first_relevant_rank: null`.
 
