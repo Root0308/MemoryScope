@@ -54,7 +54,7 @@ flowchart LR
     Dense --> Cache[Local model cache]
     BM25 --> RRF[Rank-only RRF]
     Dense --> RRF
-    API --> Eval[Recall@k / MRR@k]
+    API --> Eval["Recall@k / MRR@k"]
 ```
 
 Conversation content, evaluation labels, and embeddings stay in the local SQLite database. The only expected runtime network access is the first download of the public Dense model when it is not already cached.
