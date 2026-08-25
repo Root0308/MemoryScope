@@ -1,8 +1,8 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M4 supports BM25 and local multilingual Dense search over imported message-level memories.
+MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M5 supports BM25, local multilingual Dense search, and explainable Hybrid RRF over imported message-level memories.
 
-Implemented through M4:
+Implemented through M5:
 
 - React, TypeScript, and Vite frontend
 - FastAPI backend and health endpoint
@@ -15,9 +15,11 @@ Implemented through M4:
 - Local CPU embeddings with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, pinned to Hugging Face revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
 - float32 embedding BLOBs in SQLite with model/configuration metadata and compatible schema migration
 - Exact cosine similarity, stable ties, transactional vector builds, corruption detection, and persisted reuse
+- Hybrid retrieval over the BM25/Dense candidate union with deterministic Reciprocal Rank Fusion (`rrf_k = 60`)
+- Per-result branch ranks, raw diagnostic scores, RRF contributions, candidate-pool size, and stage timings
 - pytest coverage using an injectable fake provider; the test suite never downloads the real model
 
-Hybrid, RRF, simultaneous method comparison, charts, and evaluation execution are intentionally not implemented yet.
+Simultaneous three-method comparison, charts, and evaluation execution are intentionally not implemented yet.
 
 ## Requirements
 
@@ -26,7 +28,7 @@ Hybrid, RRF, simultaneous method comparison, charts, and evaluation execution ar
 - npm 10+
 - Python 3.11+
 
-No paid API, API key, or external database is required. Installing the backend includes the local Sentence Transformer runtime. The first Dense query downloads the fixed public model unless it is already cached.
+No paid API, API key, or external database is required. Installing the backend includes the local Sentence Transformer runtime. The first Dense or Hybrid query downloads the fixed public model unless it is already cached.
 
 ## Start the backend on Windows PowerShell
 
@@ -81,7 +83,7 @@ Import is all-or-nothing: invalid data is rejected and the transaction is rolled
 
 ## Search the example
 
-In the frontend, choose **Search** on a dataset, then select BM25 or Dense. BM25 shows raw lexical scores. Dense shows cosine similarity, fixed model details, initialization/vector-build status, and per-stage local latency. The two score types are never presented on a shared axis.
+In the frontend, choose **Search** on a dataset, then select BM25, Dense, or Hybrid. BM25 shows raw lexical scores. Dense shows cosine similarity, fixed model details, initialization/vector-build status, and per-stage local latency. Hybrid shows both branches and an explicit RRF explanation for every result.
 
 PowerShell API example, replacing `<dataset-id>` with the imported dataset ID:
 
@@ -121,6 +123,24 @@ On the first Dense request, MemoryScope loads or downloads the model, creates mi
 
 The model name alone is not used as an embedding identity. MemoryScope passes the exact revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` to Sentence Transformer and persists it with every embedding. A missing or different revision forces a transactional dataset rebuild.
 
+Hybrid API example:
+
+```powershell
+$hybridBody = @{
+  query = "用户喜欢什么界面主题？"
+  methods = @("hybrid")
+  top_k = 10
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/search `
+  -Method Post `
+  -ContentType application/json `
+  -Body $hybridBody
+```
+
+For each branch, Hybrid retrieves `min(dataset_memory_count, max(100, 5 * top_k))` candidates. It takes the candidate union and computes `1 / (60 + rank)` for each available branch; a missing branch contributes zero. The final score is the sum of those rank contributions, with `memory_id` as the stable tie-break. BM25 raw scores and Dense cosine similarities have different scales: they are never directly added or normalized together.
+
 ## Verification
 
 ```powershell
@@ -145,7 +165,7 @@ See `.env.example`. Defaults are usable without copying the file when commands a
 - `MEMORYSCOPE_MODEL_OFFLINE=true` prevents downloads and requires a complete cached model.
 - `VITE_API_BASE_URL` tells the frontend where the backend is running.
 
-The fixed model cache is approximately 500 MB (exact size varies by package/model revision). Python ML dependencies consume additional virtual-environment disk space. With a complete cache, Dense works offline; without it, offline Dense returns a clear model initialization error while BM25 remains available.
+The fixed model cache is approximately 500 MB (exact size varies by package/model revision). Python ML dependencies consume additional virtual-environment disk space. With a complete cache, Dense and Hybrid work offline; without it, offline Dense/Hybrid return a clear model initialization error while BM25 remains available.
 
 On Windows without Developer Mode, Hugging Face may warn that cache symlinks are unavailable. MemoryScope still works and stores ordinary files in the configured cache, but downloading can temporarily use more disk space.
 

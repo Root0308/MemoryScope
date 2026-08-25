@@ -26,10 +26,12 @@ from app.schemas.datasets import (
 from app.schemas.search import (
     BM25SearchResponse,
     DenseSearchResponse,
+    HybridSearchResponse,
     SearchRequest,
 )
 from app.search.bm25 import DatasetNotFoundError, search_bm25
 from app.search.dense import EmptyDatasetError, EmbeddingPersistenceError
+from app.search.hybrid import search_hybrid
 
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -167,14 +169,14 @@ async def list_memories_route(
 
 @router.post(
     "/{dataset_id}/search",
-    response_model=BM25SearchResponse | DenseSearchResponse,
+    response_model=BM25SearchResponse | DenseSearchResponse | HybridSearchResponse,
 )
 async def search_dataset_route(
     request: Request,
     dataset_id: str,
     payload: SearchRequest,
-) -> BM25SearchResponse | DenseSearchResponse:
-    unsupported = sorted(set(payload.methods) - {"bm25", "dense"})
+) -> BM25SearchResponse | DenseSearchResponse | HybridSearchResponse:
+    unsupported = sorted(set(payload.methods) - {"bm25", "dense", "hybrid"})
     if unsupported:
         requested = ", ".join(unsupported)
         raise HTTPException(
@@ -182,17 +184,19 @@ async def search_dataset_route(
             detail={
                 "code": "method_not_supported",
                 "message": (
-                    f"Search method(s) {requested} are not supported in M4. "
-                    "Hybrid search will be added in a later milestone."
+                    f"Search method(s) {requested} are not supported in M5. "
+                    "Supported methods are bm25, dense, and hybrid."
                 ),
             },
         )
-    if payload.methods not in (["bm25"], ["dense"]):
+    if payload.methods not in (["bm25"], ["dense"], ["hybrid"]):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "code": "invalid_methods",
-                "message": "M4 accepts exactly one search method: bm25 or dense.",
+                "message": (
+                    "M5 accepts exactly one search method: bm25, dense, or hybrid."
+                ),
             },
         )
 
@@ -205,12 +209,22 @@ async def search_dataset_route(
                 payload.top_k,
                 request.app.state.bm25_cache,
             )
+        if payload.methods == ["dense"]:
+            return await run_in_threadpool(
+                request.app.state.dense_search.search,
+                request.app.state.settings.database_path,
+                dataset_id,
+                payload.query,
+                payload.top_k,
+            )
         return await run_in_threadpool(
-            request.app.state.dense_search.search,
+            search_hybrid,
             request.app.state.settings.database_path,
             dataset_id,
             payload.query,
             payload.top_k,
+            request.app.state.bm25_cache,
+            request.app.state.dense_search,
         )
     except DatasetNotFoundError as error:
         raise HTTPException(status_code=404, detail="Dataset not found.") from error
@@ -219,7 +233,7 @@ async def search_dataset_route(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "code": "empty_dataset",
-                "message": "Dense search requires at least one memory.",
+                "message": "Dense and Hybrid search require at least one memory.",
             },
         ) from error
     except EmbeddingModelLoadError as error:

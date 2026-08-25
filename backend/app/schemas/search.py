@@ -89,3 +89,39 @@ class DenseSearchResponse(BaseModel):
     model: DenseModelInfo
     timing: DenseSearchTiming
     results: list[DenseSearchResult]
+
+
+class HybridSearchTiming(BaseModel):
+    total_ms: float
+    fusion_ms: float
+    bm25: BM25SearchTiming
+    dense: DenseSearchTiming
+
+
+class HybridSearchResult(BaseModel):
+    final_rank: int
+    memory_id: str
+    conversation_id: str
+    role: Literal["user", "assistant", "system", "tool"]
+    content: str
+    timestamp: str | None
+    metadata: dict[str, JsonValue] | None
+    bm25_raw_score: float | None
+    bm25_rank: int | None
+    dense_cosine: float | None
+    dense_rank: int | None
+    rrf_bm25: float
+    rrf_dense: float
+    rrf_total: float
+
+
+class HybridSearchResponse(BaseModel):
+    query: str
+    method: Literal["hybrid"]
+    top_k: int
+    total_memories: int
+    candidate_pool_size: int
+    rrf_k: int
+    model: DenseModelInfo
+    timing: HybridSearchTiming
+    results: list[HybridSearchResult]

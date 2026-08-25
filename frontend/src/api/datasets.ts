@@ -1,6 +1,5 @@
 import type {
   BM25SearchResponse,
-  DenseSearchResponse,
   DatasetListResponse,
   DatasetSummary,
   MemoryPage,
@@ -91,5 +90,5 @@ export async function searchDataset(
     signal,
   });
   if (!response.ok) throw await apiError(response);
-  return (await response.json()) as BM25SearchResponse | DenseSearchResponse;
+  return (await response.json()) as SearchResponse;
 }

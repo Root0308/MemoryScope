@@ -95,7 +95,7 @@ function App() {
       ) : (
         <DatasetPage onSearch={openSearch} />
       )}
-      <footer><span>v0.1 · M4 BM25 + local Dense retrieval</span><span>No conversation data leaves this machine.</span></footer>
+      <footer><span>v0.1 · M5 BM25 + Dense + explainable Hybrid RRF</span><span>No conversation data leaves this machine.</span></footer>
     </main>
   );
 }

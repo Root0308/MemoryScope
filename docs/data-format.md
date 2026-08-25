@@ -68,3 +68,15 @@ The current configuration is:
 - embedding version: `memoryscope-dense-v1`
 
 Matching, valid BLOBs are reused. Missing vectors are generated in a batch. A missing/different revision, any other model/configuration mismatch, corrupt BLOB, wrong dimension, non-finite value, or zero vector triggers a transactional rebuild rather than mixing incompatible vectors. Databases created before revision pinning are migrated in place; their revision-less embeddings are rebuilt on the next Dense query. Deleting a dataset cascades to its embeddings.
+
+## M5 Hybrid derived ranking data
+
+Hybrid search does not add fields to the import JSON or create another stored score. At request time, MemoryScope runs the existing BM25 and Dense branches against the same message-level memories. Each branch returns `min(N, max(100, 5 * top_k))` candidates, where `N` is the dataset memory count.
+
+The candidate union is fused with `rrf_k = 60` and one-based ranks:
+
+- `rrf_bm25 = 1 / (60 + bm25_rank)` when present, otherwise `0`
+- `rrf_dense = 1 / (60 + dense_rank)` when present, otherwise `0`
+- `rrf_total = rrf_bm25 + rrf_dense`
+
+BM25 raw scores and Dense cosine similarities are retained only as request-time explanation fields. Their scales differ, so MemoryScope never directly adds or jointly normalizes them. RRF uses branch ranks only. Hybrid results are deterministic: branch ties and final RRF ties use ascending `memory_id`.

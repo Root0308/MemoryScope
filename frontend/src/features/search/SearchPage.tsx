@@ -3,7 +3,10 @@ import type { FormEvent } from "react";
 
 import { fetchDataset, searchDataset } from "../../api/datasets";
 import type {
+  DenseSearchResponse,
   DatasetSummary,
+  HybridSearchResponse,
+  HybridSearchResult,
   SearchMethod,
   SearchResponse,
 } from "../../types/datasets";
@@ -23,8 +26,75 @@ function formatScore(score: number) {
   return score.toFixed(6);
 }
 
+function formatOptionalScore(score: number | null) {
+  return score === null ? "—" : formatScore(score);
+}
+
+function formatOptionalRank(rank: number | null) {
+  return rank === null ? "not in pool" : `rank #${rank}`;
+}
+
 function methodLabel(method: SearchMethod) {
-  return method === "bm25" ? "BM25" : "Dense";
+  if (method === "bm25") return "BM25";
+  if (method === "dense") return "Dense";
+  return "Hybrid";
+}
+
+function ModelStatus({ response }: { response: DenseSearchResponse | HybridSearchResponse }) {
+  const timing = response.method === "dense" ? response.timing : response.timing.dense;
+  return (
+    <div className="model-status">
+      <div><span>Model</span><strong>{response.model.name}</strong></div>
+      <div><span>Revision</span><strong>{response.model.model_revision}</strong></div>
+      <div><span>Embedding version</span><strong>{response.model.embedding_version}</strong></div>
+      <div><span>Configuration</span><strong>{response.model.dimension}d · {response.model.normalized ? "normalized" : "not normalized"}</strong></div>
+      <div><span>Model this request</span><strong>{response.model.initialized_this_request ? "initialized" : "already loaded"}</strong></div>
+      <div><span>Memory vectors</span><strong>{response.model.memory_embeddings_built ? "built" : "reused"}</strong></div>
+      <div><span>Model load</span><strong>{timing.model_load_ms.toFixed(3)} ms</strong></div>
+      <div><span>Memory embedding</span><strong>{timing.memory_embedding_ms.toFixed(3)} ms</strong></div>
+      <div><span>Query embedding</span><strong>{timing.query_embedding_ms.toFixed(3)} ms</strong></div>
+      <div><span>Cosine search</span><strong>{timing.search_ms.toFixed(3)} ms</strong></div>
+      {response.method === "hybrid" && (
+        <>
+          <div><span>BM25 branch</span><strong>{response.timing.bm25.total_ms.toFixed(3)} ms</strong></div>
+          <div><span>Dense branch</span><strong>{response.timing.dense.total_ms.toFixed(3)} ms</strong></div>
+          <div><span>RRF fusion</span><strong>{response.timing.fusion_ms.toFixed(3)} ms</strong></div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HybridScoreExplanation({ result }: { result: HybridSearchResult }) {
+  return (
+    <div className="hybrid-explanation" aria-label={`Scoring explanation for ${result.memory_id}`}>
+      <div>
+        <span>BM25 raw</span>
+        <strong>{formatOptionalScore(result.bm25_raw_score)}</strong>
+        <small>{formatOptionalRank(result.bm25_rank)}</small>
+      </div>
+      <div>
+        <span>Dense cosine</span>
+        <strong>{formatOptionalScore(result.dense_cosine)}</strong>
+        <small>{formatOptionalRank(result.dense_rank)}</small>
+      </div>
+      <div>
+        <span>RRF from BM25</span>
+        <strong>{formatScore(result.rrf_bm25)}</strong>
+        <small>{result.bm25_rank === null ? "0 contribution" : `1 / (60 + ${result.bm25_rank})`}</small>
+      </div>
+      <div>
+        <span>RRF from Dense</span>
+        <strong>{formatScore(result.rrf_dense)}</strong>
+        <small>{result.dense_rank === null ? "0 contribution" : `1 / (60 + ${result.dense_rank})`}</small>
+      </div>
+      <div className="rrf-total-detail">
+        <span>RRF total</span>
+        <strong>{formatScore(result.rrf_total)}</strong>
+        <small>rank contributions only</small>
+      </div>
+    </div>
+  );
 }
 
 export function SearchPage({ datasetId, onBack }: Props) {
@@ -110,18 +180,31 @@ export function SearchPage({ datasetId, onBack }: Props) {
           >
             <strong>Dense</strong><span>Local cosine · available</span>
           </button>
-          <button className="method-card" type="button" disabled>
-            <strong>Hybrid</strong><span>Later milestone</span>
+          <button
+            className={`method-card ${method === "hybrid" ? "method-active" : ""}`}
+            type="button"
+            aria-pressed={method === "hybrid"}
+            disabled={state.kind === "loading"}
+            onClick={() => chooseMethod("hybrid")}
+          >
+            <strong>Hybrid</strong><span>BM25 + Dense RRF · available</span>
           </button>
         </div>
       </section>
 
-      {method === "dense" && (
+      {(method === "dense" || method === "hybrid") && (
         <aside className="dense-notice" aria-label="Dense model information">
           <strong>Local multilingual model</strong>
           <span>sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 · CPU · exact cosine</span>
           <span>Revision e8f8c211226b894fcb81acc59f3b34ba3efd5f42</span>
           <span>First use may download the model. Cached dataset embeddings are reused from SQLite.</span>
+        </aside>
+      )}
+      {method === "hybrid" && (
+        <aside className="hybrid-notice" aria-label="Hybrid scoring information">
+          <strong>Rank fusion, not raw-score addition</strong>
+          <span>BM25 raw scores and cosine similarities use different scales and cannot be compared directly.</span>
+          <span>Each branch retrieves a fixed candidate pool; final ordering uses only 1 / (60 + branch rank).</span>
         </aside>
       )}
 
@@ -165,9 +248,17 @@ export function SearchPage({ datasetId, onBack }: Props) {
           <span>Computing the query vector and exact cosine ranking.</span>
         </div>
       )}
+      {state.kind === "loading" && state.method === "hybrid" && (
+        <div className="state-box dense-progress search-state" role="status">
+          <strong>Preparing Hybrid search…</strong>
+          <span>Running the cached BM25 branch over the fixed candidate pool.</span>
+          <span>Initializing the local Dense model and checking SQLite vectors.</span>
+          <span>Fusing branch ranks with deterministic RRF (k = 60).</span>
+        </div>
+      )}
       {state.kind === "error" && (
         <div className="state-box state-error search-state" role="alert">
-          <strong>{state.method === "dense" ? "Dense search could not complete." : "Search could not complete."}</strong>
+          <strong>{state.method === "bm25" ? "Search could not complete." : `${methodLabel(state.method)} search could not complete.`}</strong>
           <p>{state.message}</p>
         </div>
       )}
@@ -187,25 +278,23 @@ export function SearchPage({ datasetId, onBack }: Props) {
               </span>
             </div>
           </div>
-          {state.response.method === "dense" && (
-            <div className="model-status">
-              <div><span>Model</span><strong>{state.response.model.name}</strong></div>
-              <div><span>Revision</span><strong>{state.response.model.model_revision}</strong></div>
-              <div><span>Configuration</span><strong>{state.response.model.dimension}d · {state.response.model.normalized ? "normalized" : "not normalized"}</strong></div>
-              <div><span>Model this request</span><strong>{state.response.model.initialized_this_request ? "initialized" : "already loaded"}</strong></div>
-              <div><span>Memory vectors</span><strong>{state.response.model.memory_embeddings_built ? "built" : "reused"}</strong></div>
-              <div><span>Model load</span><strong>{state.response.timing.model_load_ms.toFixed(3)} ms</strong></div>
-              <div><span>Memory embedding</span><strong>{state.response.timing.memory_embedding_ms.toFixed(3)} ms</strong></div>
-              <div><span>Query embedding</span><strong>{state.response.timing.query_embedding_ms.toFixed(3)} ms</strong></div>
-              <div><span>Cosine search</span><strong>{state.response.timing.search_ms.toFixed(3)} ms</strong></div>
+          {state.response.method !== "bm25" && <ModelStatus response={state.response} />}
+          {state.response.method === "hybrid" && (
+            <div className="hybrid-scale-note">
+              <strong>How this ranking works</strong>
+              <span>BM25 raw and Dense cosine values are shown for diagnosis only. They are not added or normalized together.</span>
+              <span>Final rank comes from RRF contributions computed from each branch rank with k = {state.response.rrf_k}.</span>
             </div>
           )}
           <p className="results-context">
             Showing {state.response.results.length} of {state.response.total_memories} memories · top_k {state.response.top_k}
+            {state.response.method === "hybrid" && (
+              <> · {state.response.candidate_pool_size} candidates per branch · rrf_k {state.response.rrf_k}</>
+            )}
           </p>
           <div className="result-list">
             {state.response.results.map((result) => (
-              <article className="result-card" key={result.memory_id}>
+              <article className={`result-card ${"rrf_total" in result ? "result-card-hybrid" : ""}`} key={result.memory_id}>
                 <div className="rank-badge" aria-label={`Rank ${result.final_rank}`}>{result.final_rank}</div>
                 <div className="result-body">
                   <div className="result-meta">
@@ -216,10 +305,20 @@ export function SearchPage({ datasetId, onBack }: Props) {
                   </div>
                   <p>{result.content}</p>
                 </div>
-                <div className={`score-box score-${resultMethod}`}>
-                  <span>{"bm25_raw" in result ? "BM25 raw" : "cosine similarity"}</span>
-                  <strong>{formatScore("bm25_raw" in result ? result.bm25_raw : result.dense_cosine)}</strong>
-                </div>
+                {"rrf_total" in result ? (
+                  <>
+                    <div className="score-box score-hybrid">
+                      <span>RRF total</span>
+                      <strong>{formatScore(result.rrf_total)}</strong>
+                    </div>
+                    <HybridScoreExplanation result={result} />
+                  </>
+                ) : (
+                  <div className={`score-box score-${resultMethod}`}>
+                    <span>{"bm25_raw" in result ? "BM25 raw" : "cosine similarity"}</span>
+                    <strong>{formatScore("bm25_raw" in result ? result.bm25_raw : result.dense_cosine)}</strong>
+                  </div>
+                )}
               </article>
             ))}
           </div>

@@ -257,7 +257,7 @@ def test_search_response_contains_only_real_bm25_fields(
     assert "rrf" not in response.text.lower()
 
 
-@pytest.mark.parametrize("methods", [["hybrid"]])
+@pytest.mark.parametrize("methods", [["unknown"], ["dense", "unknown"]])
 def test_rejects_unimplemented_methods_without_fake_results(
     client: TestClient,
     ranking_payload: dict[str, object],
@@ -270,11 +270,11 @@ def test_rejects_unimplemented_methods_without_fake_results(
     assert response.status_code == 422
     body = response.json()
     assert body["detail"]["code"] == "method_not_supported"
-    assert "not supported in M4" in body["detail"]["message"]
+    assert "not supported in M5" in body["detail"]["message"]
     assert "results" not in body
 
 
-def test_rejects_multi_method_comparison_in_m4(
+def test_rejects_multi_method_comparison_in_m5(
     client: TestClient,
     ranking_payload: dict[str, object],
 ) -> None:

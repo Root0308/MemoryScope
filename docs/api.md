@@ -80,7 +80,7 @@ Deletes the dataset and all related memories, embeddings, evaluation cases, and 
 
 ### `POST /datasets/{id}/search`
 
-M4 accepts exactly one method per request: BM25 or Dense. Multi-method comparison is not implemented yet.
+M5 accepts exactly one method per request: BM25, Dense, or Hybrid. A request such as `methods: ["bm25", "dense"]` is a later comparison workflow and returns `422` with `code: invalid_methods`.
 
 BM25 request:
 
@@ -180,8 +180,85 @@ Dense timing is separated into model loading, memory embedding inspection/build,
 
 The first Dense request may download the fixed model revision, then creates missing vectors transactionally. The exact revision is passed to Sentence Transformer and returned as `model.model_revision`. A missing/different revision, any other model/configuration mismatch, or invalid stored vector causes a full dataset rebuild. Model load failure returns `503` with `code: model_initialization_failed`; embedding generation or transactional persistence failures return `500` with explicit codes and no fabricated results.
 
-Requests containing `hybrid` return `422` with `code: method_not_supported`; requests containing both BM25 and Dense return `422` with `code: invalid_methods`. No substitute or fabricated scores are returned.
+Hybrid request:
 
-## Not implemented in M4
+```json
+{
+  "query": "用户喜欢什么界面主题？",
+  "methods": ["hybrid"],
+  "top_k": 10
+}
+```
 
-Hybrid/RRF, multi-method comparison, charts, and evaluation execution endpoints do not exist yet.
+Hybrid response shape:
+
+```json
+{
+  "query": "用户喜欢什么界面主题？",
+  "method": "hybrid",
+  "top_k": 10,
+  "total_memories": 4,
+  "candidate_pool_size": 4,
+  "rrf_k": 60,
+  "model": {
+    "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "model_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "dimension": 384,
+    "normalized": true,
+    "embedding_version": "memoryscope-dense-v1",
+    "initialized_this_request": false,
+    "memory_embeddings_built": false
+  },
+  "timing": {
+    "total_ms": 29.412,
+    "fusion_ms": 0.093,
+    "bm25": {
+      "total_ms": 0.251,
+      "index_ms": 0.003,
+      "search_ms": 0.248,
+      "cache_hit": true
+    },
+    "dense": {
+      "total_ms": 28.972,
+      "model_load_ms": 0.006,
+      "memory_embedding_ms": 0.241,
+      "query_embedding_ms": 28.541,
+      "search_ms": 0.184
+    }
+  },
+  "results": [
+    {
+      "final_rank": 1,
+      "memory_id": "mem-001",
+      "conversation_id": "conv-001",
+      "role": "user",
+      "content": "我更喜欢深色主题。",
+      "timestamp": "2026-08-20T18:00:00+08:00",
+      "metadata": { "source": "sample" },
+      "bm25_raw_score": 4.6173414449274865,
+      "bm25_rank": 1,
+      "dense_cosine": 0.731245,
+      "dense_rank": 2,
+      "rrf_bm25": 0.01639344262295082,
+      "rrf_dense": 0.016129032258064516,
+      "rrf_total": 0.03252247488101534
+    }
+  ]
+}
+```
+
+Each branch receives `min(total_memories, max(100, 5 * top_k))` candidates. MemoryScope takes the candidate union, assigns one-based branch ranks, and calculates:
+
+- `rrf_bm25 = 1 / (60 + bm25_rank)`
+- `rrf_dense = 1 / (60 + dense_rank)`
+- `rrf_total = rrf_bm25 + rrf_dense`
+
+If a result is absent from one branch candidate pool, that branch's rank and raw score are `null` and its RRF contribution is `0`. BM25 raw scores and cosine similarities are not directly comparable and are never added or normalized together. Equal branch scores and equal `rrf_total` values are resolved by ascending `memory_id`.
+
+The Hybrid `model` object is the Dense embedding identity/signature and lifecycle state. Its name, exact revision, dimension, normalized flag, and embedding version must all match persisted vectors; otherwise the M4 transactional rebuild behavior applies. The nested timing object separates BM25, Dense, and RRF fusion work.
+
+Unknown methods return `422` with `code: method_not_supported`. No substitute or fabricated scores are returned.
+
+## Not implemented in M5
+
+Multi-method comparison, charts, and evaluation execution endpoints do not exist yet.
