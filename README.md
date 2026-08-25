@@ -259,6 +259,11 @@ Set `MEMORYSCOPE_MODEL_OFFLINE=true` only after the complete pinned revision is 
 
 Possible post-v0.1.0 work includes saved evaluation runs, additional explicitly labelled metrics, exportable reports, and larger-dataset indexing. These are not part of the current release.
 
+## Contributors
+
+- [Root0308](https://github.com/Root0308) — creator and maintainer
+- OpenAI Codex — AI coding collaborator for product specification, implementation, testing, documentation, and release preparation
+
 ## License
 
 MemoryScope is released under the [MIT License](LICENSE).
