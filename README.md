@@ -1,8 +1,8 @@
 # MemoryScope
 
-MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M6 supports single BM25, local multilingual Dense, explainable Hybrid RRF, and one-query three-method rank comparison over imported message-level memories.
+MemoryScope is a new, independent, local-first tool for inspecting and evaluating agent memory retrieval. M7 supports single BM25, local multilingual Dense, explainable Hybrid RRF, one-query three-method comparison, and labelled Recall@k/MRR@k evaluation over imported message-level memories.
 
-Implemented through M6:
+Implemented through M7:
 
 - React, TypeScript, and Vite frontend
 - FastAPI backend and health endpoint
@@ -19,9 +19,9 @@ Implemented through M6:
 - Per-result branch ranks, raw diagnostic scores, RRF contributions, candidate-pool size, and stage timings
 - Compare API that executes BM25 and Dense once, reuses their candidate ranks for Hybrid, and encodes the Dense query once
 - Responsive three-column results, accessible rank matrix, and Recharts timing visualization with shared preparation shown separately
+- Evaluation API over imported `evaluation_cases`, with macro Recall@k, macro MRR@k, average latency, and standard-median P50 latency
+- Three-method evaluation cards, quality/latency charts, and per-case evidence with no-hit and no-label states
 - pytest coverage using an injectable fake provider; the test suite never downloads the real model
-
-Recall, MRR, evaluation-case execution, and aggregate evaluation reports are intentionally not implemented yet; those belong to M7.
 
 ## Requirements
 
@@ -168,7 +168,37 @@ Compare timing fields deliberately separate shared and method-specific work:
 - `hybrid_fusion_ms`: RRF fusion of the already-computed candidate ranks.
 - `total_ms`: full request wall-clock time, including response alignment/assembly.
 
-The timing chart contains only `bm25_ms`, `dense_ms`, and `hybrid_fusion_ms`; shared preparation is displayed separately and is not repeated across methods. Compare is an exploratory rank-inspection tool, not formal evaluation. Recall and MRR arrive in M7.
+The timing chart contains only `bm25_ms`, `dense_ms`, and `hybrid_fusion_ms`; shared preparation is displayed separately and is not repeated across methods. Compare remains exploratory rank inspection. The Evaluation mode described below uses imported human relevance labels.
+
+## Evaluate the example
+
+Open the dataset workspace and choose **Evaluation**. The sample contains two deliberately small, human-readable cases. Choose `k` from 1 to 50 and run all three methods locally.
+
+PowerShell API example:
+
+```powershell
+$evaluationBody = @{
+  k = 3
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/api/v1/datasets/<dataset-id>/evaluate `
+  -Method Post `
+  -ContentType application/json `
+  -Body $evaluationBody
+```
+
+For one case with relevant set `R` and returned top-k IDs `T`, MemoryScope calculates:
+
+- `Recall@k = |R ∩ T| / |R|`.
+- `RR@k = 1 / r` when the first relevant result is at one-based rank `r <= k`; otherwise `0`.
+- Dataset Recall@k and MRR@k are macro averages: each case contributes equal weight.
+- `average_latency_ms` is the arithmetic mean of the per-case method stage.
+- `p50_latency_ms` is the standard median; for an even sample count it averages the two middle values.
+
+Each eval query computes BM25 and Dense rankings once and reuses them for Hybrid. Dense encodes one query vector per case. Method latency semantics match Compare: BM25 is lexical scoring/ranking, Dense is query encoding plus cosine ranking, and Hybrid is RRF fusion only. Model initialization, vector inspection/build, and other shared preparation appear once in `preparation_ms` rather than being attributed to every method.
+
+Metrics depend entirely on manually supplied `relevant_memory_ids`. They are not automatic truth labels, a statistical significance test, or evidence that a method generalizes beyond the imported local dataset. Evaluation runs are not stored as history.
 
 ## Verification
 

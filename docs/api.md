@@ -330,10 +330,107 @@ Timing semantics:
 - `hybrid_fusion_ms`: RRF fusion using the already-computed branch candidates.
 - `total_ms`: complete Compare wall-clock time, including alignment and response construction.
 
-BM25 raw and Dense cosine scores remain on different scales. Compare does not add, normalize, or plot them on one numeric axis; it compares ranks. This endpoint is exploratory visualization, not evaluation, and does not calculate Recall, MRR, or use `evaluation_cases`.
+BM25 raw and Dense cosine scores remain on different scales. Compare does not add, normalize, or plot them on one numeric axis; it compares ranks. This endpoint is exploratory visualization and does not use `evaluation_cases`.
+
+### `POST /datasets/{id}/evaluate`
+
+Runs BM25, Dense, and Hybrid over every imported evaluation case in stable import order:
+
+```json
+{
+  "k": 3
+}
+```
+
+`k` defaults to 10 and must be an integer from 1 to 50. A missing dataset returns `404`. A dataset with no evaluation cases returns `422` with `code: no_evaluation_cases`; MemoryScope does not fabricate zero aggregates.
+
+For each query, the endpoint invokes the same shared ranking path as Compare: BM25 and Dense each run once, Dense encodes the query once, and Hybrid fuses those branch candidates with `rrf_k = 60`. Evaluation may build/reuse the existing SQLite embedding cache but does not update messages, cases, or relevance labels.
+
+Abbreviated response:
+
+```json
+{
+  "dataset_id": "uuid",
+  "k": 3,
+  "case_count": 2,
+  "total_memories": 4,
+  "candidate_pool_size": 4,
+  "rrf_k": 60,
+  "preparation_ms": 1.284,
+  "total_ms": 38.912,
+  "model": {
+    "name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "model_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "dimension": 384,
+    "normalized": true,
+    "embedding_version": "memoryscope-dense-v1",
+    "initialized_this_request": false,
+    "memory_embeddings_built": false,
+    "embedding_signature": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2@e8f8c211226b894fcb81acc59f3b34ba3efd5f42|dimension=384|normalized=true|version=memoryscope-dense-v1"
+  },
+  "bm25": {
+    "method": "bm25",
+    "aggregate": {
+      "recall_at_k": 1.0,
+      "mrr_at_k": 1.0,
+      "average_latency_ms": 0.184,
+      "p50_latency_ms": 0.184
+    },
+    "cases": [
+      {
+        "eval_case_id": "eval-001",
+        "query": "用户喜欢什么界面主题？",
+        "relevant_message_ids": ["mem-001"],
+        "retrieved_message_ids": ["mem-001", "mem-002", "mem-003"],
+        "retrieved_relevant_message_ids": ["mem-001"],
+        "recall_at_k": 1.0,
+        "reciprocal_rank": 1.0,
+        "first_relevant_rank": 1,
+        "latency_ms": 0.173
+      }
+    ]
+  },
+  "dense": {
+    "method": "dense",
+    "aggregate": {
+      "recall_at_k": 1.0,
+      "mrr_at_k": 0.75,
+      "average_latency_ms": 17.814,
+      "p50_latency_ms": 17.814
+    },
+    "cases": []
+  },
+  "hybrid": {
+    "method": "hybrid",
+    "aggregate": {
+      "recall_at_k": 1.0,
+      "mrr_at_k": 1.0,
+      "average_latency_ms": 0.061,
+      "p50_latency_ms": 0.061
+    },
+    "cases": []
+  }
+}
+```
+
+The abbreviated Dense and Hybrid `cases` arrays above omit repeated case objects for readability; actual responses contain one complete case object per method and imported eval case.
+
+Metric definitions:
+
+- Per-case `Recall@k = retrieved_relevant_count / relevant_message_count`.
+- Per-case reciprocal rank is `1 / r` for the first relevant result at one-based rank `r <= k`, otherwise `0`.
+- Aggregate Recall@k and MRR@k are macro averages over all cases; cases have equal weight.
+- `average_latency_ms` is the arithmetic mean of the method's per-case latency.
+- `p50_latency_ms` is the standard median; an even case count averages the two middle samples.
+
+Timing semantics intentionally match Compare:
+
+- `preparation_ms` is the accumulated shared BM25 index and Dense dataset/model/vector preparation across the run.
+- BM25 case latency is query scoring and stable lexical ranking only.
+- Dense case latency is one query embedding plus exact cosine scoring and stable ranking.
+- Hybrid case latency is RRF fusion of the already-computed candidates only; it is not presented as a separate end-to-end retrieval.
+- `total_ms` is the complete Evaluation request wall-clock time.
+
+Metrics depend on manually imported `relevant_memory_ids`. They are not auto-generated facts, significance tests, or evidence that a small local dataset generalizes to other retrieval workloads. Evaluation runs are not stored as history.
 
 Unknown methods return `422` with `code: method_not_supported`. No substitute or fabricated scores are returned.
-
-## Not implemented in M6
-
-Evaluation execution, Recall, MRR, and evaluation-case aggregate reports do not exist yet.

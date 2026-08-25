@@ -95,7 +95,7 @@ function App() {
       ) : (
         <DatasetPage onSearch={openSearch} />
       )}
-      <footer><span>v0.1 · M6 single search + three-method comparison</span><span>No conversation data leaves this machine.</span></footer>
+      <footer><span>v0.1 · M7 labelled retrieval evaluation</span><span>No conversation data leaves this machine.</span></footer>
     </main>
   );
 }

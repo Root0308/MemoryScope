@@ -14,6 +14,11 @@ import type {
 const ComparePanel = lazy(() =>
   import("./ComparePanel").then((module) => ({ default: module.ComparePanel })),
 );
+const EvaluationPanel = lazy(() =>
+  import("../evaluation/EvaluationPanel").then((module) => ({
+    default: module.EvaluationPanel,
+  })),
+);
 
 type Props = {
   datasetId: string;
@@ -108,7 +113,7 @@ export function SearchPage({ datasetId, onBack }: Props) {
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState("10");
   const [state, setState] = useState<SearchState>({ kind: "idle" });
-  const [viewMode, setViewMode] = useState<"single" | "compare">("single");
+  const [viewMode, setViewMode] = useState<"single" | "compare" | "evaluation">("single");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -176,9 +181,21 @@ export function SearchPage({ datasetId, onBack }: Props) {
         >
           Compare Methods
         </button>
+        <button
+          type="button"
+          className={viewMode === "evaluation" ? "mode-active" : ""}
+          aria-pressed={viewMode === "evaluation"}
+          onClick={() => setViewMode("evaluation")}
+        >
+          Evaluation{dataset ? ` (${dataset.evaluation_case_count})` : ""}
+        </button>
       </div>
 
-      {viewMode === "compare" ? (
+      {viewMode === "evaluation" ? (
+        <Suspense fallback={<div className="state-box search-state" role="status">Loading evaluation workspace…</div>}>
+          <EvaluationPanel dataset={dataset} datasetError={datasetError} datasetId={datasetId} />
+        </Suspense>
+      ) : viewMode === "compare" ? (
         <Suspense fallback={<div className="state-box search-state" role="status">Loading comparison workspace…</div>}>
           <ComparePanel dataset={dataset} datasetError={datasetError} datasetId={datasetId} />
         </Suspense>

@@ -165,3 +165,43 @@ export type CompareSearchResponse = {
   hybrid_results: HybridSearchResult[];
   comparison_rows: ComparisonRow[];
 };
+
+export type EvaluationAggregateMetrics = {
+  recall_at_k: number;
+  mrr_at_k: number;
+  average_latency_ms: number;
+  p50_latency_ms: number;
+};
+
+export type EvaluationCaseResult = {
+  eval_case_id: string;
+  query: string;
+  relevant_message_ids: string[];
+  retrieved_message_ids: string[];
+  retrieved_relevant_message_ids: string[];
+  recall_at_k: number;
+  reciprocal_rank: number;
+  first_relevant_rank: number | null;
+  latency_ms: number;
+};
+
+export type EvaluationMethodReport = {
+  method: SearchMethod;
+  aggregate: EvaluationAggregateMetrics;
+  cases: EvaluationCaseResult[];
+};
+
+export type EvaluationResponse = {
+  dataset_id: string;
+  k: number;
+  case_count: number;
+  total_memories: number;
+  candidate_pool_size: number;
+  rrf_k: number;
+  preparation_ms: number;
+  total_ms: number;
+  model: DenseModelInfo & { embedding_signature: string };
+  bm25: EvaluationMethodReport;
+  dense: EvaluationMethodReport;
+  hybrid: EvaluationMethodReport;
+};

@@ -85,4 +85,12 @@ BM25 raw scores and Dense cosine similarities are retained only as request-time 
 
 Compare mode adds no fields to the imported JSON and persists no comparison run. A Compare response is derived from one immutable imported dataset, one query, and one `top_k`. It returns the three top-k lists plus `comparison_rows`, which is the deduplicated union of those lists keyed by `memory_id`.
 
-Each row contains `bm25_rank`, `dense_rank`, and `hybrid_rank`. A rank is `null` when that memory is not present in the corresponding method's top-k, even if it appeared in a deeper candidate pool. The content is copied from the same message-level memory snapshot. Compare does not read or calculate `evaluation_cases`, Recall, or MRR; those remain M7 concerns.
+Each row contains `bm25_rank`, `dense_rank`, and `hybrid_rank`. A rank is `null` when that memory is not present in the corresponding method's top-k, even if it appeared in a deeper candidate pool. The content is copied from the same message-level memory snapshot. Compare does not read `evaluation_cases`; it remains exploratory rather than labelled evaluation.
+
+## M7 labelled evaluation data
+
+M7 reads `evaluation_cases` in import order and each case's `relevant_memory_ids` in source-memory order. These are human-provided relevance labels. Evaluation does not edit messages, cases, or relevance rows, and it does not persist an evaluation run or metric history. Dense may still create or reuse its existing derived embedding cache under the M4 rules.
+
+The Evaluation API calls the returned labels `relevant_message_ids` to make clear that imported message IDs are the unit of relevance. `retrieved_message_ids` is the ordered top-k list for one method; `retrieved_relevant_message_ids` is its ordered intersection with the relevant labels. An empty intersection produces Recall `0`, reciprocal rank `0`, and `first_relevant_rank: null`.
+
+For each method, dataset Recall@k and MRR@k are macro averages over cases. Average and P50 latency are derived from the method-specific per-case stages. Shared model/vector/data preparation is returned separately and never stored in the import JSON.

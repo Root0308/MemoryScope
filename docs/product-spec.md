@@ -19,7 +19,7 @@ The v0.1 workflow is to import a strict conversation dataset, retrieve message-l
 - Evaluation cases, Hit Rate, Recall, and MRR are part of v0.1.
 - The project uses the MIT License.
 
-## Implemented through M6
+## Implemented through M7
 
 M2 implements:
 
@@ -70,10 +70,24 @@ M6 implements:
 - a Single Search / Compare Methods switch, three responsive result columns, a readable rank matrix, and a method-specific Recharts timing chart;
 - rank comparison without directly comparing, adding, or jointly normalizing BM25 raw and Dense cosine values.
 
-## Explicitly outside M6
+M7 implements:
 
-- Evaluation execution and metric calculation
-- Recall, MRR, and evaluation-case aggregation
+- read-only evaluation over all imported cases in stable import order;
+- one BM25 and Dense ranking per eval query, one Dense query encoding, and reuse of those rankings for Hybrid RRF;
+- per-case Recall@k, reciprocal rank, first-relevant rank, retrieved IDs, and relevant-hit evidence;
+- macro-average Recall@k and MRR@k for BM25, Dense, and Hybrid;
+- arithmetic-mean and standard-median P50 latency with preparation isolated from method stages;
+- fixed model revision/signature and vector build/reuse evidence on evaluation responses;
+- an Evaluation workspace with three summary cards, quality and latency charts, and responsive per-case details;
+- explicit empty-label, no-hit, loading, model preparation, and error states.
+
+## Explicitly outside M7
+
+- Evaluation history persistence or run comparison over time
+- Automatic or LLM-generated relevance labels
+- Statistical significance analysis or claims of general retrieval quality
+- Online services, authentication, and multiple users
+- Hit Rate reporting and release/publishing work
 
 ## v0.1 non-goals
 

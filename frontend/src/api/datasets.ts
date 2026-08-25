@@ -3,6 +3,7 @@ import type {
   CompareSearchResponse,
   DatasetListResponse,
   DatasetSummary,
+  EvaluationResponse,
   MemoryPage,
   SearchMethod,
   SearchResponse,
@@ -111,4 +112,22 @@ export async function compareDatasetSearch(
   );
   if (!response.ok) throw await apiError(response);
   return (await response.json()) as CompareSearchResponse;
+}
+
+export async function evaluateDataset(
+  datasetId: string,
+  k: number,
+  signal?: AbortSignal,
+): Promise<EvaluationResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/datasets/${datasetId}/evaluate`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ k }),
+      signal,
+    },
+  );
+  if (!response.ok) throw await apiError(response);
+  return (await response.json()) as EvaluationResponse;
 }

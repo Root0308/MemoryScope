@@ -8,6 +8,7 @@ from app.embeddings.provider import (
     EmbeddingGenerationError,
     EmbeddingModelLoadError,
 )
+from app.evaluation.service import NoEvaluationCasesError, evaluate_dataset
 
 from app.repositories.datasets import (
     delete_dataset,
@@ -16,6 +17,7 @@ from app.repositories.datasets import (
     list_datasets,
     list_memories,
 )
+from app.repositories.evaluations import InvalidEvaluationReferenceError
 from app.schemas.datasets import (
     DatasetImport,
     DatasetListResponse,
@@ -23,6 +25,7 @@ from app.schemas.datasets import (
     MAX_FILE_BYTES,
     MemoryPageResponse,
 )
+from app.schemas.evaluation import EvaluationRequest, EvaluationResponse
 from app.schemas.search import (
     BM25SearchResponse,
     CompareSearchRequest,
@@ -299,6 +302,87 @@ async def compare_search_methods_route(
             status_code=status.HTTP_409_CONFLICT,
             detail={
                 "code": "dataset_snapshot_changed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingModelLoadError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "model_initialization_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingGenerationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_generation_failed",
+                "message": str(error),
+            },
+        ) from error
+    except EmbeddingPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "embedding_persistence_failed",
+                "message": str(error),
+            },
+        ) from error
+
+
+@router.post(
+    "/{dataset_id}/evaluate",
+    response_model=EvaluationResponse,
+)
+async def evaluate_dataset_route(
+    request: Request,
+    dataset_id: str,
+    payload: EvaluationRequest,
+) -> EvaluationResponse:
+    try:
+        return await run_in_threadpool(
+            evaluate_dataset,
+            request.app.state.settings.database_path,
+            dataset_id,
+            payload.k,
+            request.app.state.bm25_cache,
+            request.app.state.dense_search,
+        )
+    except DatasetNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Dataset not found.") from error
+    except NoEvaluationCasesError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "no_evaluation_cases",
+                "message": (
+                    "This dataset has no evaluation cases. Import evaluation_cases "
+                    "with relevant_memory_ids before running evaluation."
+                ),
+            },
+        ) from error
+    except EmptyDatasetError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "empty_dataset",
+                "message": "Evaluation requires at least one memory.",
+            },
+        ) from error
+    except DatasetSnapshotChangedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "dataset_snapshot_changed",
+                "message": str(error),
+            },
+        ) from error
+    except InvalidEvaluationReferenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "invalid_evaluation_reference",
                 "message": str(error),
             },
         ) from error
